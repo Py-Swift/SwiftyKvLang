@@ -620,33 +620,55 @@ public final class KvParser {
     /// Reconstruct value string from tokens
     private func reconstructValue(from tokens: [Token]) -> String {
         var result = ""
+        var needsSpace = false
+        
         for token in tokens {
+            // Determine if we need a space before this token
+            let addSpace = needsSpace && !isDotOrBracket(token)
+            if addSpace {
+                result += " "
+            }
+            
             switch token.type {
             case .identifier(let s), .string(let s), .number(let s):
-                result += s + " "
+                result += s
+                needsSpace = true
             case .comma:
-                result += ", "
+                result += ","
+                needsSpace = true
             case .colon:
-                result += ": "
+                result += ":"
+                needsSpace = true
             case .dot:
                 result += "."
-            case .leftParen:
-                result += "("
-            case .rightParen:
-                result += ")"
-            case .leftBracket:
-                result += "["
-            case .rightBracket:
-                result += "]"
+                needsSpace = false  // No space after dot
+            case .leftParen, .leftBracket:
+                result += token.type == .leftParen ? "(" : "["
+                needsSpace = false
+            case .rightParen, .rightBracket:
+                result += token.type == .rightParen ? ")" : "]"
+                needsSpace = true
             case .minus:
                 result += "-"
+                needsSpace = false
             case .plus:
                 result += "+"
+                needsSpace = true
             default:
                 break
             }
         }
         return result.trimmingCharacters(in: .whitespaces)
+    }
+    
+    /// Check if token is a dot or bracket that should connect without space
+    private func isDotOrBracket(_ token: Token) -> Bool {
+        switch token.type {
+        case .dot, .leftBracket, .rightBracket:
+            return true
+        default:
+            return false
+        }
     }
     
     // MARK: - Canvas Instruction Parsing

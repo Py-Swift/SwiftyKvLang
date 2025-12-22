@@ -305,4 +305,137 @@ final class KvParserTests: XCTestCase {
             print(firstRule.treeDescription())
         }
     }
+    
+    // MARK: - Compiler Tests
+    
+    func testCompileSimpleProperty() {
+        let compiled = KvCompiler.compile(propertyName: "text", value: "'Hello World'")
+        
+        XCTAssertEqual(compiled.mode, .eval)
+        XCTAssertTrue(compiled.isConstant, "String literal should have no watched keys")
+        XCTAssertEqual(compiled.watchedKeys.count, 0)
+    }
+    
+    func testCompilePropertyWithWatchedKey() {
+        let compiled = KvCompiler.compile(propertyName: "width", value: "self.parent.width")
+        
+        XCTAssertEqual(compiled.mode, .eval)
+        XCTAssertFalse(compiled.isConstant)
+        XCTAssertEqual(compiled.watchedKeys.count, 1)
+        XCTAssertEqual(compiled.watchedKeys[0], ["self", "parent", "width"])
+    }
+    
+    func testCompileEventHandler() {
+        let compiled = KvCompiler.compile(propertyName: "on_press", value: "print('pressed')")
+        
+        XCTAssertEqual(compiled.mode, .exec)
+        XCTAssertTrue(compiled.isConstant, "Event handlers should not have watched keys")
+    }
+    
+    func testCompileComplexExpression() {
+        let compiled = KvCompiler.compile(
+            propertyName: "opacity",
+            value: ".7 if self.disabled else 1"
+        )
+        
+        XCTAssertEqual(compiled.mode, .eval)
+        XCTAssertFalse(compiled.isConstant)
+        XCTAssertTrue(compiled.watchedKeys.contains(["self", "disabled"]))
+    }
+    
+    func testCompileMultipleWatchedKeys() {
+        let compiled = KvCompiler.compile(
+            propertyName: "pos",
+            value: "self.parent.x + root.offset_x, self.parent.y + root.offset_y"
+        )
+        
+        XCTAssertEqual(compiled.mode, .eval)
+        XCTAssertFalse(compiled.isConstant)
+        
+        // Should have 4 watched keys
+        let keys = Set(compiled.watchedKeys)
+        XCTAssertTrue(keys.contains(["self", "parent", "x"]))
+        XCTAssertTrue(keys.contains(["self", "parent", "y"]))
+        XCTAssertTrue(keys.contains(["root", "offset_x"]))
+        XCTAssertTrue(keys.contains(["root", "offset_y"]))
+    }
+    
+    func testCompileIgnoresStrings() {
+        let compiled = KvCompiler.compile(
+            propertyName: "text",
+            value: "'self.width is: ' + str(self.width)"
+        )
+        
+        XCTAssertEqual(compiled.mode, .eval)
+        XCTAssertFalse(compiled.isConstant)
+        
+        // Should only extract self.width, not the one in the string
+        XCTAssertEqual(compiled.watchedKeys.count, 1)
+        XCTAssertEqual(compiled.watchedKeys[0], ["self", "width"])
+    }
+    
+    func testCompileWithFString() {
+        let compiled = KvCompiler.compile(
+            propertyName: "text",
+            value: "f'Width: {self.width}'"
+        )
+        
+        XCTAssertEqual(compiled.mode, .eval)
+        XCTAssertFalse(compiled.isConstant)
+        XCTAssertTrue(compiled.watchedKeys.contains(["self", "width"]))
+    }
+    
+    func testCompileWithTranslation() {
+        let compiled = KvCompiler.compile(
+            propertyName: "text",
+            value: "_('Hello')"
+        )
+        
+        XCTAssertEqual(compiled.mode, .eval)
+        XCTAssertFalse(compiled.isConstant)
+        
+        // Translation function adds special "_" key
+        XCTAssertTrue(compiled.watchedKeys.contains(["_"]))
+    }
+    
+    func testCompileModule() throws {
+        let source = """
+        <Button>:
+            text: 'Click me'
+            width: self.parent.width
+            opacity: .7 if self.disabled else 1
+            on_press: print('pressed')
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        let compiled = module.compile()
+        
+        XCTAssertEqual(compiled.rules.count, 1)
+        
+        let rule = compiled.rules[0]
+        XCTAssertEqual(rule.properties.count, 3)
+        XCTAssertEqual(rule.handlers.count, 1)
+        
+        // Check compiled properties
+        let textProp = rule.properties.first { $0.name == "text" }!
+        XCTAssertTrue(textProp.compiled.isConstant)
+        
+        let widthProp = rule.properties.first { $0.name == "width" }!
+        XCTAssertFalse(widthProp.compiled.isConstant)
+        XCTAssertTrue(widthProp.compiled.watchedKeys.contains(["self", "parent", "width"]))
+        
+        let opacityProp = rule.properties.first { $0.name == "opacity" }!
+        XCTAssertFalse(opacityProp.compiled.isConstant)
+        XCTAssertTrue(opacityProp.compiled.watchedKeys.contains(["self", "disabled"]))
+        
+        // Check event handler
+        let handler = rule.handlers[0]
+        XCTAssertEqual(handler.name, "on_press")
+        XCTAssertEqual(handler.compiled.mode, .exec)
+        XCTAssertTrue(handler.compiled.isConstant)
+    }
 }
