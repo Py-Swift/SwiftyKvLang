@@ -455,8 +455,8 @@ final class KvParserTests: XCTestCase {
         let parser = KvParser(tokens: tokens)
         let module = try parser.parse()
         
-        var collector = PropertyNameCollector()
-        module.accept(visitor: &collector)
+        let collector = PropertyNameCollector()
+        module.accept(visitor: collector)
         
         XCTAssertEqual(collector.propertyNames.count, 4)
         XCTAssertTrue(collector.propertyNames.contains("text"))
@@ -482,8 +482,8 @@ final class KvParserTests: XCTestCase {
         let parser = KvParser(tokens: tokens)
         let module = try parser.parse()
         
-        var collector = WidgetNameCollector()
-        module.accept(visitor: &collector)
+        let collector = WidgetNameCollector()
+        module.accept(visitor: collector)
         
         XCTAssertEqual(collector.widgetNames.count, 5)
         XCTAssertEqual(collector.widgetNames[0], "BoxLayout")
@@ -510,8 +510,8 @@ final class KvParserTests: XCTestCase {
         let parser = KvParser(tokens: tokens)
         let module = try parser.parse()
         
-        var collector = SelectorCollector()
-        module.accept(visitor: &collector)
+        let collector = SelectorCollector()
+        module.accept(visitor: collector)
         
         XCTAssertEqual(collector.selectors.count, 3)
         XCTAssertTrue(collector.selectors.contains("Button"))
@@ -542,8 +542,8 @@ final class KvParserTests: XCTestCase {
         let parser = KvParser(tokens: tokens)
         let module = try parser.parse()
         
-        var stats = ASTStatistics()
-        module.accept(visitor: &stats)
+        let stats = ASTStatistics()
+        module.accept(visitor: stats)
         
         XCTAssertEqual(stats.directiveCount, 1)
         XCTAssertEqual(stats.ruleCount, 2)
@@ -565,8 +565,8 @@ final class KvParserTests: XCTestCase {
         let parser = KvParser(tokens: tokens)
         let module = try parser.parse()
         
-        var finder = WatchedPropertyFinder()
-        module.accept(visitor: &finder)
+        let finder = WatchedPropertyFinder()
+        module.accept(visitor: finder)
         
         // Should find 2 properties with watched keys (width and opacity)
         XCTAssertEqual(finder.watchedProperties.count, 2)
