@@ -1,0 +1,42 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Xcode
+*.xcodeproj
+*.xcworkspace
+!*.xcworkspace/contents.xcworkspacedata
+*.xcuserdatad
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Build artifacts
+*.o
+*.lo
+*.la
+*.dylib
+*.so
+*.a
+
+# Testing
+.coverage
+*.profdata
+*.profraw
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary files
+*~
+.swp
+*.tmp
+
+# Reference repositories (not part of the package)
+PySwiftAST/
+kivy/
