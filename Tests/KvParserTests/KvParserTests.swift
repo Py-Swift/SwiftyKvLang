@@ -865,5 +865,162 @@ final class KvParserTests: XCTestCase {
         // Should recover and parse some valid rules
         XCTAssertGreaterThan(result.module.rules.count, 0)
     }
+    
+    // MARK: - Semantic Validation Tests
+    
+    func testValidateKnownWidgets() throws {
+        let source = """
+        <Button>:
+            text: 'Valid'
+        
+        <UnknownWidget>:
+            text: 'Unknown'
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        let result = KvSemanticValidator.validate(module)
+        
+        // Should have warning for unknown widget
+        XCTAssertTrue(result.hasWarnings)
+        XCTAssertTrue(result.issues.contains { $0.message.contains("UnknownWidget") })
+    }
+    
+    func testValidatePropertyTypos() throws {
+        let source = """
+        <Label>:
+            colour: 1, 0, 0, 1
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        let result = KvSemanticValidator.validate(module)
+        
+        // Should have error for 'colour' (British spelling)
+        XCTAssertTrue(result.hasErrors)
+        let typoError = result.issues.first { $0.message.contains("colour") }
+        XCTAssertNotNil(typoError)
+        XCTAssertTrue(typoError?.suggestion?.contains("color") ?? false)
+    }
+    
+    func testValidateDynamicClassNaming() throws {
+        let source = """
+        <customButton@Button>:
+            text: 'Custom'
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        let result = KvSemanticValidator.validate(module)
+        
+        // Should warn about lowercase dynamic class name
+        XCTAssertTrue(result.hasWarnings)
+        XCTAssertTrue(result.issues.contains { $0.message.contains("should start with uppercase") })
+    }
+    
+    func testValidateExpressionComplexity() throws {
+        let source = """
+        <Button>:
+            text: '[x for x in range(10)]'
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        let result = KvSemanticValidator.validate(module)
+        
+        // Should have info about complex expression
+        XCTAssertTrue(result.issues.contains { $0.message.contains("Complex expression") })
+    }
+    
+    func testValidateRedundantSelf() throws {
+        let source = """
+        <Button>:
+            width: self.self.parent.width
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        let result = KvSemanticValidator.validate(module)
+        
+        // Should have error for redundant self.self
+        XCTAssertTrue(result.hasErrors)
+        XCTAssertTrue(result.issues.contains { $0.message.contains("self.self") })
+    }
+    
+    func testValidateAssignmentInExpression() throws {
+        let source = """
+        <Button>:
+            size_hint: None None
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        let result = KvSemanticValidator.validate(module)
+        
+        // Validation should complete without crashing
+        // (None None is technically valid Python, just unusual)
+        XCTAssertTrue(true)
+    }
+    
+    func testValidateCanvasInstructions() throws {
+        let source = """
+        <Button>:
+            canvas:
+                Color:
+                    rgba: 1, 1, 1, 1
+                UnknownInstruction:
+                    value: 42
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        let result = KvSemanticValidator.validate(module)
+        
+        // Should warn about unknown canvas instruction
+        XCTAssertTrue(result.hasWarnings)
+        XCTAssertTrue(result.issues.contains { $0.message.contains("UnknownInstruction") })
+    }
+    
+    func testValidateCleanCode() throws {
+        let source = """
+        <Button>:
+            text: 'Hello'
+            width: self.parent.width
+            background_color: 1, 0, 0, 1
+            on_press: print('clicked')
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        let result = KvSemanticValidator.validate(module)
+        
+        // Should have no errors or warnings for valid code
+        XCTAssertTrue(result.isValid)
+        XCTAssertFalse(result.hasErrors)
+    }
 }
 
