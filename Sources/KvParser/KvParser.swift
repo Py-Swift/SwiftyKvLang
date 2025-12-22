@@ -6,8 +6,8 @@
 ///
 /// Reference: parser.py lines 454-777
 public final class KvParser {
-    private let tokens: [Token]
-    private var current: Int = 0
+    internal let tokens: [Token]
+    internal var current: Int = 0
     private var filename: String?
     
     public init(tokens: [Token], filename: String? = nil) {
@@ -90,76 +90,85 @@ public final class KvParser {
         
         for token in tokens {
             guard case .directive(let text) = token.type else { continue }
-            
-            // Remove #: prefix
-            let content = text.dropFirst(2).trimmingCharacters(in: .whitespaces)
-            let parts = content.split(separator: " ", maxSplits: 2).map(String.init)
-            
-            guard let command = parts.first else { continue }
-            
-            switch command {
-            case "kivy":
-                // #:kivy 1.0
-                if parts.count >= 2 {
-                    directives.append(.kivy(version: parts[1], line: token.line))
-                }
-                
-            case "import":
-                // #:import alias module.path
-                if parts.count >= 3 {
-                    directives.append(.import(
-                        alias: parts[1],
-                        package: parts[2],
-                        line: token.line
-                    ))
-                }
-                
-            case "set":
-                // #:set name value
-                if parts.count >= 3 {
-                    directives.append(.set(
-                        name: parts[1],
-                        value: parts[2],
-                        line: token.line
-                    ))
-                }
-                
-            case "include":
-                // #:include [force] path
-                var force = false
-                var path = ""
-                
-                if parts.count >= 3 && parts[1] == "force" {
-                    force = true
-                    path = parts[2]
-                } else if parts.count >= 2 {
-                    path = parts[1]
-                }
-                
-                // Remove quotes if present
-                if path.hasPrefix("'") && path.hasSuffix("'") ||
-                   path.hasPrefix("\"") && path.hasSuffix("\"") {
-                    path = String(path.dropFirst().dropLast())
-                }
-                
-                directives.append(.include(path: path, force: force, line: token.line))
-                
-            default:
-                throw KvParserError.syntaxError(
-                    line: token.line,
-                    message: "Unknown directive: #:\(command)"
-                )
-            }
+            let directive = try parseDirective(text: text, line: token.line)
+            directives.append(directive)
         }
         
         return directives
+    }
+    
+    /// Parse a single directive from its text
+    internal func parseDirective(text: String, line: Int) throws -> KvDirective {
+        // Remove #: prefix
+        let content = text.dropFirst(2).trimmingCharacters(in: .whitespaces)
+        let parts = content.split(separator: " ", maxSplits: 2).map(String.init)
+        
+        guard let command = parts.first else {
+            throw KvParserError.syntaxError(line: line, message: "Empty directive")
+        }
+        
+        switch command {
+        case "kivy":
+            // #:kivy 1.0
+            if parts.count >= 2 {
+                return .kivy(version: parts[1], line: line)
+            }
+            
+        case "import":
+            // #:import alias module.path
+            if parts.count >= 3 {
+                return .import(
+                    alias: parts[1],
+                    package: parts[2],
+                    line: line
+                )
+            }
+            
+        case "set":
+            // #:set name value
+            if parts.count >= 3 {
+                return .set(
+                    name: parts[1],
+                    value: parts[2],
+                    line: line
+                )
+            }
+            
+        case "include":
+            // #:include [force] path
+            var force = false
+            var path = ""
+            
+            if parts.count >= 3 && parts[1] == "force" {
+                force = true
+                path = parts[2]
+            } else if parts.count >= 2 {
+                path = parts[1]
+            }
+            
+            // Remove quotes if present
+            if path.hasPrefix("'") && path.hasSuffix("'") ||
+               path.hasPrefix("\"") && path.hasSuffix("\"") {
+                path = String(path.dropFirst().dropLast())
+            }
+            
+            return .include(path: path, force: force, line: line)
+            
+        default:
+            throw KvParserError.syntaxError(
+                line: line,
+                message: "Unknown directive: #:\(command)"
+            )
+        }
+        
+        throw KvParserError.syntaxError(line: line, message: "Invalid directive format")
     }
     
     // MARK: - Rule Parsing
     
     /// Parse a rule: <Selector>:
     /// Reference: parser.py lines 394-432
-    private func parseRule() throws -> KvRule {
+    internal func parseRule() throws -> KvRule {
         let startToken = peek()
         guard case .leftAngle = startToken.type else {
             throw KvParserError.unexpectedToken(token: startToken, expected: "<")
@@ -298,7 +307,7 @@ public final class KvParser {
     
     /// Parse template: [Name@Base]:
     /// Reference: parser.py lines 434-452
-    private func parseTemplate() throws -> KvTemplate {
+    internal func parseTemplate() throws -> KvTemplate {
         let startToken = peek()
         guard case .leftBracket = startToken.type else {
             throw KvParserError.unexpectedToken(token: startToken, expected: "[")
@@ -381,7 +390,7 @@ public final class KvParser {
     // MARK: - Widget Parsing
     
     /// Parse a widget instance
-    private func parseWidget(level: Int) throws -> KvWidget {
+    internal func parseWidget(level: Int) throws -> KvWidget {
         let startToken = peek()
         guard case .identifier(let name) = startToken.type else {
             throw KvParserError.unexpectedToken(token: startToken, expected: "widget name")
@@ -742,12 +751,12 @@ public final class KvParser {
     
     // MARK: - Helper Methods
     
-    private func peek() -> Token {
+    internal func peek() -> Token {
         return current < tokens.count ? tokens[current] : Token(type: .eof, line: 0, column: 0)
     }
     
     @discardableResult
-    private func advance() -> Token {
+    internal func advance() -> Token {
         let token = peek()
         if current < tokens.count {
             current += 1
@@ -755,7 +764,7 @@ public final class KvParser {
         return token
     }
     
-    private func skipNewlines() {
+    internal func skipNewlines() {
         while case .newline = peek().type {
             advance()
         }
@@ -765,7 +774,7 @@ public final class KvParser {
         current = min(index, tokens.count)
     }
     
-    private var isAtEnd: Bool {
+    internal var isAtEnd: Bool {
         return current >= tokens.count || peek().type == .eof
     }
 }

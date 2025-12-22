@@ -739,4 +739,131 @@ final class KvParserTests: XCTestCase {
         XCTAssertNotNil(module2.rules[0].canvas)
         XCTAssertEqual(module1.rules[0].canvas?.instructions.count, module2.rules[0].canvas?.instructions.count)
     }
+    
+    // MARK: - Error Recovery Tests
+    
+    func testStrictModeThrowsOnError() throws {
+        let source = """
+        <Button>:
+            text: 'Valid'
+        
+        <Label
+            text: 'Missing >'
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        
+        // Strict mode should throw
+        XCTAssertThrowsError(try parser.parseWithRecovery(mode: .strict))
+    }
+    
+    func testTolerantModeCollectsErrors() throws {
+        let source = """
+        <Button>:
+            text: 'Valid'
+        
+        < >
+            text: 'Invalid empty selector'
+        
+        <Label>:
+            text: 'Another valid rule'
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        
+        let result = try parser.parseWithRecovery(mode: .tolerant)
+        
+        // Should have some errors but still parse valid rules
+        XCTAssertFalse(result.isSuccess)
+        XCTAssertGreaterThan(result.errors.count, 0)
+        
+        // Should have parsed the valid rules
+        XCTAssertGreaterThanOrEqual(result.module.rules.count, 1)
+    }
+    
+    func testRecoveryFromMissingColon() throws {
+        let source = """
+        < >:
+            text: 'Invalid empty selector'
+        
+        <Label>:
+            text: 'Valid rule'
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        
+        let result = try parser.parseWithRecovery(mode: .tolerant)
+        
+        // Should have error for empty selector
+        XCTAssertFalse(result.isSuccess)
+        XCTAssertGreaterThan(result.errors.count, 0)
+    }
+    
+    func testErrorLocationTracking() throws {
+        let source = """
+        <Button>:
+            text: 'Valid'
+        
+        InvalidToken!!!
+        
+        <Label>:
+            text: 'Valid'
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        
+        let result = try parser.parseWithRecovery(mode: .tolerant)
+        
+        // Should have error with location
+        XCTAssertFalse(result.isSuccess)
+        XCTAssertGreaterThan(result.errors.count, 0)
+        
+        // Check error has line information
+        if let error = result.errors.first {
+            XCTAssertGreaterThan(error.line, 0)
+        }
+    }
+    
+    func testPartialParsing() throws {
+        let source = """
+        #:kivy 1.0
+        
+        <Button>:
+            text: 'Valid rule 1'
+        
+        garbage @#$%
+        
+        <Label>:
+            text: 'Valid rule 2'
+        
+        more garbage
+        
+        <Widget>:
+            size_hint: 1, 1
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        
+        let result = try parser.parseWithRecovery(mode: .tolerant)
+        
+        // Should have errors
+        XCTAssertFalse(result.isSuccess)
+        
+        // Should still parse directives
+        XCTAssertGreaterThanOrEqual(result.module.directives.count, 1)
+        
+        // Should recover and parse some valid rules
+        XCTAssertGreaterThan(result.module.rules.count, 0)
+    }
 }
+
