@@ -27,7 +27,17 @@ extension KvNode {
 /// (similar to PySwiftAST's TreeDisplayable)
 public protocol TreeDisplayable {
     /// Returns a formatted string representation suitable for debugging
+    /// - Parameter indent: Indentation level (for compatibility, may not be used in tree mode)
     func treeDescription(indent: Int) -> String
+}
+
+/// Extension providing detailed tree view capability
+public extension TreeDisplayable {
+    /// Generate detailed tree with proper box-drawing characters
+    /// This is a convenience method that can be overridden for custom behavior
+    func detailedTreeDescription() -> String {
+        return treeDescription(indent: 0)
+    }
 }
 
 /// Helper for generating tree-style output with proper box-drawing characters

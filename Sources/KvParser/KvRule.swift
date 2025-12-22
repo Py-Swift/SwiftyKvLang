@@ -118,6 +118,87 @@ extension KvRule: TreeDisplayable {
         
         return result
     }
+    
+    /// Detailed tree content for deep traversal
+    internal func detailedContent(depth: Int, parentBranches: [Bool]) -> String {
+        var result = ""
+        var allItems: [(name: String, hasChildren: Bool)] = []
+        
+        // Collect all child items
+        for prop in properties {
+            allItems.append((name: "\(prop.name): \(prop.value)", hasChildren: false))
+        }
+        
+        for handler in handlers {
+            allItems.append((name: "\(handler.name): \(handler.value)", hasChildren: false))
+        }
+        
+        if canvasBefore != nil {
+            allItems.append((name: "canvas.before", hasChildren: true))
+        }
+        
+        if canvas != nil {
+            allItems.append((name: "canvas", hasChildren: true))
+        }
+        
+        if canvasAfter != nil {
+            allItems.append((name: "canvas.after", hasChildren: true))
+        }
+        
+        for child in children {
+            allItems.append((name: child.name, hasChildren: !child.children.isEmpty || !child.properties.isEmpty))
+        }
+        
+        // Format with tree characters
+        var childIndex = 0
+        for prop in properties {
+            let isLast = childIndex == allItems.count - 1
+            let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
+            result += "\(prefix)\(prop.name): \(prop.value)\n"
+            childIndex += 1
+        }
+        
+        for handler in handlers {
+            let isLast = childIndex == allItems.count - 1
+            let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
+            result += "\(prefix)\(handler.name): \(handler.value)\n"
+            childIndex += 1
+        }
+        
+        if let canvasBefore = canvasBefore {
+            let isLast = childIndex == allItems.count - 1
+            let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
+            result += "\(prefix)canvas.before\n"
+            result += canvasBefore.detailedContent(depth: depth + 1, parentBranches: parentBranches + [!isLast])
+            childIndex += 1
+        }
+        
+        if let canvas = canvas {
+            let isLast = childIndex == allItems.count - 1
+            let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
+            result += "\(prefix)canvas\n"
+            result += canvas.detailedContent(depth: depth + 1, parentBranches: parentBranches + [!isLast])
+            childIndex += 1
+        }
+        
+        if let canvasAfter = canvasAfter {
+            let isLast = childIndex == allItems.count - 1
+            let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
+            result += "\(prefix)canvas.after\n"
+            result += canvasAfter.detailedContent(depth: depth + 1, parentBranches: parentBranches + [!isLast])
+            childIndex += 1
+        }
+        
+        for child in children {
+            let isLast = childIndex == allItems.count - 1
+            let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
+            result += "\(prefix)\(child.name)\n"
+            result += child.detailedContent(depth: depth + 1, parentBranches: parentBranches + [!isLast])
+            childIndex += 1
+        }
+        
+        return result
+    }
 }
 
 /// Template definition (deprecated but still supported)

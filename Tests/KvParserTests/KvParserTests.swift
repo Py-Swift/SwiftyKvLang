@@ -1102,5 +1102,56 @@ final class KvParserTests: XCTestCase {
         XCTAssertTrue(result.isValid)
         XCTAssertFalse(result.hasErrors)
     }
+    
+    func testDetailedTreeView() throws {
+        let source = """
+        #:kivy 1.0
+        
+        <Button>:
+            text: 'Click'
+            size: 100, 50
+            canvas:
+                Color:
+                    rgba: 1, 0, 0, 1
+                Rectangle:
+                    pos: self.pos
+                    size: self.size
+        
+        BoxLayout:
+            orientation: 'vertical'
+            Label:
+                text: 'Hello'
+            Button:
+                text: 'World'
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        // Test summary view
+        let summary = module.treeDescription()
+        XCTAssertTrue(summary.contains("KvModule"))
+        XCTAssertTrue(summary.contains("Directives (1)"))
+        XCTAssertTrue(summary.contains("Rules (1)"))
+        XCTAssertTrue(summary.contains("Root Widget"))
+        XCTAssertTrue(summary.contains("├──") || summary.contains("└──"))
+        
+        // Test detailed view
+        let detailed = module.detailedTreeDescription()
+        XCTAssertTrue(detailed.contains("KvModule"))
+        XCTAssertTrue(detailed.contains("kivy"))
+        XCTAssertTrue(detailed.contains("Button"))
+        XCTAssertTrue(detailed.contains("canvas"))
+        XCTAssertTrue(detailed.contains("Color"))
+        XCTAssertTrue(detailed.contains("BoxLayout"))
+        XCTAssertTrue(detailed.contains("Label"))
+        
+        print("\n=== Summary View ===")
+        print(summary)
+        print("\n=== Detailed View ===")
+        print(detailed)
+    }
 }
 

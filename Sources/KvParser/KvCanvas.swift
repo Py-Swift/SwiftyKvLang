@@ -56,6 +56,26 @@ extension KvCanvas: TreeDisplayable {
         
         return result
     }
+    
+    /// Detailed tree content for deep traversal
+    internal func detailedContent(depth: Int, parentBranches: [Bool]) -> String {
+        var result = ""
+        
+        for (index, instruction) in instructions.enumerated() {
+            let isLast = index == instructions.count - 1
+            let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
+            result += "\(prefix)\(instruction.instructionType)\n"
+            
+            // Add properties of the instruction
+            for (propIndex, prop) in instruction.properties.enumerated() {
+                let isPropLast = propIndex == instruction.properties.count - 1
+                let propPrefix = TreeFormatter.prefix(depth: depth + 1, isLast: isPropLast, parentBranches: parentBranches + [!isLast])
+                result += "\(propPrefix)\(prop.name): \(prop.value)\n"
+            }
+        }
+        
+        return result
+    }
 }
 
 /// Canvas graphics instruction

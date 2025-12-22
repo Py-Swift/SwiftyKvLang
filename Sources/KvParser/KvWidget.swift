@@ -121,6 +121,61 @@ extension KvWidget: TreeDisplayable {
         
         return result
     }
+    
+    /// Detailed tree content for deep traversal
+    internal func detailedContent(depth: Int, parentBranches: [Bool]) -> String {
+        var result = ""
+        var childIndex = 0
+        let totalItems = properties.count + handlers.count + (canvasBefore != nil ? 1 : 0) + (canvas != nil ? 1 : 0) + (canvasAfter != nil ? 1 : 0) + children.count
+        
+        for prop in properties {
+            let isLast = childIndex == totalItems - 1
+            let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
+            result += "\(prefix)\(prop.name): \(prop.value)\n"
+            childIndex += 1
+        }
+        
+        for handler in handlers {
+            let isLast = childIndex == totalItems - 1
+            let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
+            result += "\(prefix)\(handler.name): \(handler.value)\n"
+            childIndex += 1
+        }
+        
+        if let canvasBefore = canvasBefore {
+            let isLast = childIndex == totalItems - 1
+            let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
+            result += "\(prefix)canvas.before\n"
+            result += canvasBefore.detailedContent(depth: depth + 1, parentBranches: parentBranches + [!isLast])
+            childIndex += 1
+        }
+        
+        if let canvas = canvas {
+            let isLast = childIndex == totalItems - 1
+            let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
+            result += "\(prefix)canvas\n"
+            result += canvas.detailedContent(depth: depth + 1, parentBranches: parentBranches + [!isLast])
+            childIndex += 1
+        }
+        
+        if let canvasAfter = canvasAfter {
+            let isLast = childIndex == totalItems - 1
+            let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
+            result += "\(prefix)canvas.after\n"
+            result += canvasAfter.detailedContent(depth: depth + 1, parentBranches: parentBranches + [!isLast])
+            childIndex += 1
+        }
+        
+        for child in children {
+            let isLast = childIndex == totalItems - 1
+            let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
+            result += "\(prefix)\(child.name)\n"
+            result += child.detailedContent(depth: depth + 1, parentBranches: parentBranches + [!isLast])
+            childIndex += 1
+        }
+        
+        return result
+    }
 }
 
 /// Property assignment in KV language
