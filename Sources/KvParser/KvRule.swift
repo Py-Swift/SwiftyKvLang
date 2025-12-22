@@ -135,7 +135,7 @@ extension KvRule: TreeDisplayable {
         for prop in properties {
             let isLast = childIndex == totalItems - 1
             let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
-            result += "\(prefix)⚙︎ \(prop.name): \(prop.value) [property, line \(prop.line)]\n"
+            result += "\(prefix)\(prop.name): \(prop.value) [property, line \(prop.line)]\n"
             childIndex += 1
         }
         
@@ -143,7 +143,7 @@ extension KvRule: TreeDisplayable {
         for handler in handlers {
             let isLast = childIndex == totalItems - 1
             let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
-            result += "\(prefix)⚡︎ \(handler.name): \(handler.value) [handler, line \(handler.line)]\n"
+            result += "\(prefix)\(handler.name): \(handler.value) [handler, line \(handler.line)]\n"
             childIndex += 1
         }
         
@@ -151,7 +151,7 @@ extension KvRule: TreeDisplayable {
         if let canvasBefore = canvasBefore {
             let isLast = childIndex == totalItems - 1
             let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
-            result += "\(prefix)🎨 canvas.before [canvas, line \(canvasBefore.line)]\n"
+            result += "\(prefix)canvas.before [canvas, line \(canvasBefore.line)]\n"
             result += canvasBefore.detailedContent(depth: depth + 1, parentBranches: parentBranches + [!isLast])
             childIndex += 1
         }
@@ -160,7 +160,7 @@ extension KvRule: TreeDisplayable {
         if let canvas = canvas {
             let isLast = childIndex == totalItems - 1
             let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
-            result += "\(prefix)🎨 canvas [canvas, line \(canvas.line)]\n"
+            result += "\(prefix)canvas [canvas, line \(canvas.line)]\n"
             result += canvas.detailedContent(depth: depth + 1, parentBranches: parentBranches + [!isLast])
             childIndex += 1
         }
@@ -169,7 +169,7 @@ extension KvRule: TreeDisplayable {
         if let canvasAfter = canvasAfter {
             let isLast = childIndex == totalItems - 1
             let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
-            result += "\(prefix)🎨 canvas.after [canvas, line \(canvasAfter.line)]\n"
+            result += "\(prefix)canvas.after [canvas, line \(canvasAfter.line)]\n"
             result += canvasAfter.detailedContent(depth: depth + 1, parentBranches: parentBranches + [!isLast])
             childIndex += 1
         }
@@ -178,7 +178,8 @@ extension KvRule: TreeDisplayable {
         for child in children {
             let isLast = childIndex == totalItems - 1
             let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
-            result += "\(prefix)📦 \(child.name) [widget, line \(child.line)]\n"
+            let idInfo = child.id != nil ? ", id: \(child.id!)" : ""
+            result += "\(prefix)\(child.name) [widget, line \(child.line)\(idInfo)]\n"
             result += child.detailedContent(depth: depth + 1, parentBranches: parentBranches + [!isLast])
             childIndex += 1
         }

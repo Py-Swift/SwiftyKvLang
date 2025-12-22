@@ -145,7 +145,15 @@ extension KvModule: TreeDisplayable {
     /// Detailed view - shows full AST tree with all nested nodes
     private func detailedTreeDescriptionInternal(depth: Int, parentBranches: [Bool]) -> String {
         var result = depth == 0 ? "KvModule\n" : ""
-        var allItems: [(name: String, content: String)] = []
+        
+        enum Item {
+            case directive(String)
+            case rule(String, KvRule)
+            case template(String, KvRule)
+            case rootWidget(String, KvWidget)
+        }
+        
+        var allItems: [Item] = []
         
         // Add directives
         for directive in directives {
@@ -160,38 +168,47 @@ extension KvModule: TreeDisplayable {
             case .include(let path, let force, _):
                 name = "#:include\(force ? " [force]" : "") \(path)"
             }
-            allItems.append((name: name, content: ""))
+            allItems.append(.directive(name))
         }
         
-        // Add rules with full tree
-        for (index, rule) in rules.enumerated() {
+        // Add rules with full tree - content should be nested under rule name
+        for rule in rules {
             let avoid = rule.avoidPrevious ? "-" : ""
-            let name = "<\(avoid)\(rule.selector.primaryName)>"
-            let isLastRule = index == rules.count - 1
-            let content = rule.detailedContent(depth: depth + 1, parentBranches: parentBranches + [!isLastRule])
-            allItems.append((name: name, content: content))
+            let name = "<\(avoid)\(rule.selector.primaryName)> [rule, line \(rule.line)]"
+            allItems.append(.rule(name, rule))
         }
         
         // Add templates
-        for (index, template) in templates.enumerated() {
-            let name = "[\(template.name)@\(template.baseClasses.joined(separator: "+"))]"
-            let isLastTemplate = index == templates.count - 1
-            let content = template.rule.detailedContent(depth: depth + 1, parentBranches: parentBranches + [!isLastTemplate])
-            allItems.append((name: name, content: content))
+        for template in templates {
+            let name = "[\(template.name)@\(template.baseClasses.joined(separator: "+"))] [template, line \(template.line)]"
+            allItems.append(.template(name, template.rule))
         }
         
         // Add root widget tree
         if let root = root {
-            let content = root.detailedContent(depth: depth + 1, parentBranches: parentBranches + [false])
-            allItems.append((name: root.name, content: content))
+            let name = "\(root.name) [root, line \(root.line)]\(root.id != nil ? ", id: \(root.id!)" : "")"
+            allItems.append(.rootWidget(name, root))
         }
         
         // Format with tree characters
+        let totalItems = allItems.count
         for (index, item) in allItems.enumerated() {
-            let isLast = index == allItems.count - 1
+            let isLast = index == totalItems - 1
             let prefix = TreeFormatter.prefix(depth: depth + 1, isLast: isLast, parentBranches: parentBranches)
-            result += "\(prefix)\(item.name)\n"
-            result += item.content
+            
+            switch item {
+            case .directive(let name):
+                result += "\(prefix)\(name)\n"
+            case .rule(let name, let rule):
+                result += "\(prefix)\(name)\n"
+                result += rule.detailedContent(depth: depth + 2, parentBranches: parentBranches + [!isLast])
+            case .template(let name, let rule):
+                result += "\(prefix)\(name)\n"
+                result += rule.detailedContent(depth: depth + 2, parentBranches: parentBranches + [!isLast])
+            case .rootWidget(let name, let widget):
+                result += "\(prefix)\(name)\n"
+                result += widget.detailedContent(depth: depth + 2, parentBranches: parentBranches + [!isLast])
+            }
         }
         
         return result
