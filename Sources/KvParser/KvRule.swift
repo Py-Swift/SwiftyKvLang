@@ -1,3 +1,5 @@
+import PySwiftAST
+
 /// Widget class rule definition
 ///
 /// Represents a rule that applies to widget classes, defining their properties,
@@ -144,6 +146,12 @@ extension KvRule: TreeDisplayable {
             let isLast = childIndex == totalItems - 1
             let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
             result += "\(prefix)\(handler.name): \(handler.value) [handler, line \(handler.line)]\n"
+            
+            // Show Python AST if available
+            if let ast = handler.pythonAST, !ast.isEmpty {
+                result += formatPythonAST(ast, depth: depth + 1, parentBranches: parentBranches + [!isLast])
+            }
+            
             childIndex += 1
         }
         
@@ -184,6 +192,42 @@ extension KvRule: TreeDisplayable {
             childIndex += 1
         }
         
+        return result
+    }
+    
+    /// Format Python AST statements for tree display
+    private func formatPythonAST(_ statements: [Statement], depth: Int, parentBranches: [Bool]) -> String {
+        var result = ""
+        for (index, stmt) in statements.enumerated() {
+            let isLast = index == statements.count - 1
+            let stmtLines = stmt.treeLines(indent: "", isLast: isLast)
+            
+            for (lineIndex, line) in stmtLines.enumerated() {
+                let prefix: String
+                
+                if lineIndex == 0 {
+                    // First line gets branch character
+                    prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
+                } else {
+                    // Continuation lines - need proper indentation matching tree structure
+                    var indent = ""
+                    for i in 0..<depth {
+                        if i < parentBranches.count && parentBranches[i] {
+                            indent += "│   "
+                        } else {
+                            indent += "    "
+                        }
+                    }
+                    // Add continuation for current level
+                    indent += isLast ? "    " : "│   "
+                    prefix = indent
+                }
+                
+                // Remove leading branch chars from PySwiftAST output since we're adding our own
+                let cleanLine = line.replacingOccurrences(of: "^[├└]── ", with: "", options: .regularExpression)
+                result += "\(prefix)\(cleanLine) [python_ast]\n"
+            }
+        }
         return result
     }
 }

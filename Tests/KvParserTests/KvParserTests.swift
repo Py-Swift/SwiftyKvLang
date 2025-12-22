@@ -1231,6 +1231,44 @@ final class KvParserTests: XCTestCase {
         let onRelease = rule.handlers.first { $0.name == "on_release" }
         XCTAssertNil(onRelease?.pythonAST, "Invalid Python should return nil AST")
     }
+    
+    func testDetailedTreeWithPythonAST() throws {
+        let source = """
+        <Button>:
+            text: 'Click'
+            size: 100, 50
+            on_press: print("pressed")
+            on_release: app.stop()
+        
+        BoxLayout:
+            orientation: 'vertical'
+            Button:
+                on_press: self.disabled = True
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        let detailed = module.detailedTreeDescription()
+        
+        // Should contain handler entries
+        XCTAssertTrue(detailed.contains("on_press"))
+        XCTAssertTrue(detailed.contains("on_release"))
+        XCTAssertTrue(detailed.contains("[handler"))
+        
+        // Should contain Python AST markers
+        XCTAssertTrue(detailed.contains("[python_ast]"))
+        
+        // Should contain Python AST node types (from PySwiftAST tree display)
+        // These come from Statement tree representations
+        XCTAssertTrue(detailed.contains("Expr") || detailed.contains("Call"), 
+                     "Should show Python AST node types")
+        
+        print("\n=== Detailed Tree with Python AST ===")
+        print(detailed)
+    }
 }
 
 
