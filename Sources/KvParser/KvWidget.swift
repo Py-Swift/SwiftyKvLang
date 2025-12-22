@@ -1,3 +1,5 @@
+import PySwiftAST
+
 /// Widget instance in KV language
 ///
 /// Represents a widget instance, either as a root widget or child widget.
@@ -211,6 +213,10 @@ public struct KvProperty: KvNode, Sendable {
     /// Used for property overrides
     public let ignorePrevious: Bool
     
+    /// Python AST for event handlers (when name starts with "on_")
+    /// Parsed from the value using PySwiftAST as statement(s)
+    public let pythonAST: [Statement]?
+    
     // Position tracking
     public let line: Int
     public let column: Int
@@ -223,6 +229,7 @@ public struct KvProperty: KvNode, Sendable {
         compiledValue: KvCompiledValue = .expression(""),
         watchedKeys: [[String]]? = nil,
         ignorePrevious: Bool = false,
+        pythonAST: [Statement]? = nil,
         line: Int,
         column: Int = 0,
         endLine: Int? = nil,
@@ -233,6 +240,7 @@ public struct KvProperty: KvNode, Sendable {
         self.compiledValue = compiledValue
         self.watchedKeys = watchedKeys
         self.ignorePrevious = ignorePrevious
+        self.pythonAST = pythonAST
         self.line = line
         self.column = column
         self.endLine = endLine

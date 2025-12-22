@@ -22,15 +22,16 @@ let package = Package(
         ),
     ],
     dependencies: [
-        // Reference PySwiftAST for expression parsing patterns
-        // Uncomment if we decide to reuse Python expression parser
-        // .package(path: "./PySwiftAST")
+        // PySwiftAST for parsing Python code in event handlers
+        .package(path: "./PySwiftAST")
     ],
     targets: [
         // KV language parser target
         .target(
             name: "KvParser",
-            dependencies: [],
+            dependencies: [
+                .product(name: "PySwiftAST", package: "PySwiftAST")
+            ],
             path: "Sources/KvParser"
         ),
         

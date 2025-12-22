@@ -1,3 +1,5 @@
+import PySwiftAST
+
 /// KV language parser
 ///
 /// Implements recursive descent parsing following parser.py's parse_level() algorithm.
@@ -567,6 +569,9 @@ public final class KvParser {
         
         // Collect value tokens until newline
         var valueTokens: [Token] = []
+        let valueStartLine = peek().line
+        let valueStartColumn = peek().column
+        
         while !isAtEnd {
             let token = peek()
             if case .newline = token.type {
@@ -620,10 +625,21 @@ public final class KvParser {
         // Reconstruct value string from tokens
         let value = reconstructValue(from: valueTokens)
         
+        // Parse Python AST for event handlers
+        let pythonAST: [Statement]?
+        if KvPythonParser.isHandler(name) {
+            pythonAST = KvPythonParser.parseHandler(value)
+            // Note: Parse may fail if value contains special characters not preserved by tokenization
+            // (e.g., semicolons are not tokenized separately)
+        } else {
+            pythonAST = nil
+        }
+        
         return KvProperty(
             name: name,
             value: value,
             compiledValue: .expression(value),
+            pythonAST: pythonAST,
             line: startToken.line
         )
     }
@@ -641,7 +657,16 @@ public final class KvParser {
             }
             
             switch token.type {
-            case .identifier(let s), .string(let s), .number(let s):
+            case .identifier(let s):
+                result += s
+                needsSpace = true
+            case .string(let s):
+                // Preserve quotes for strings
+                // Try to detect if original had single or double quotes
+                // For now, always use double quotes
+                result += "\"\(s)\""
+                needsSpace = true
+            case .number(let s):
                 result += s
                 needsSpace = true
             case .comma:

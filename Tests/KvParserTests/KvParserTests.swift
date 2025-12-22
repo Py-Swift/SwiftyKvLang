@@ -1153,5 +1153,84 @@ final class KvParserTests: XCTestCase {
         print("\n=== Detailed View ===")
         print(detailed)
     }
+    
+    // MARK: - Python AST Integration Tests
+    
+    func testPythonASTInHandlers() throws {
+        let source = """
+        <Button>:
+            text: 'Click me'
+            on_press: print("Button pressed!")
+            on_release: app.handle_release(self)
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        XCTAssertEqual(module.rules.count, 1)
+        let rule = module.rules[0]
+        XCTAssertEqual(rule.handlers.count, 2)
+        
+        // Check on_press handler has Python AST
+        let onPress = rule.handlers.first { $0.name == "on_press" }
+        XCTAssertNotNil(onPress)
+        XCTAssertNotNil(onPress?.pythonAST, "on_press handler should have parsed Python AST")
+        
+        if let ast = onPress?.pythonAST {
+            // Should have 1 statement (print call)
+            XCTAssertEqual(ast.count, 1, "on_press has one statement")
+            
+            // Should be an Expr statement (print call)
+            if case .expr(let exprStmt) = ast[0] {
+                // Should be a Call expression
+                if case .call = exprStmt.value {
+                    // Success - it's a function call
+                } else {
+                    XCTFail("Statement should be a Call expression")
+                }
+            } else {
+                XCTFail("Statement should be an Expr")
+            }
+        }
+        
+        // Check on_release handler
+        let onRelease = rule.handlers.first { $0.name == "on_release" }
+        XCTAssertNotNil(onRelease)
+        XCTAssertNotNil(onRelease?.pythonAST, "on_release handler should have parsed Python AST")
+        
+        print("\n=== Python AST Test ===")
+        if let ast = onPress?.pythonAST {
+            print("on_press AST: \(ast.count) statements")
+        }
+        if let ast = onRelease?.pythonAST {
+            print("on_release AST: \(ast.count) statements")
+        }
+    }
+    
+    func testPythonASTParsingErrors() throws {
+        let source = """
+        <Button>:
+            on_press: print("valid code")
+            on_release: if incomplete syntax
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        let rule = module.rules[0]
+        
+        // Valid handler should have AST
+        let onPress = rule.handlers.first { $0.name == "on_press" }
+        XCTAssertNotNil(onPress?.pythonAST, "Valid Python should parse")
+        
+        // Invalid handler should have nil AST
+        let onRelease = rule.handlers.first { $0.name == "on_release" }
+        XCTAssertNil(onRelease?.pythonAST, "Invalid Python should return nil AST")
+    }
 }
+
 
