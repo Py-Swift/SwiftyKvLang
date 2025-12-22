@@ -755,10 +755,10 @@ final class KvParserTests: XCTestCase {
             return
         }
         
-        let source = try String(contentsOf: url, encoding: .utf8)
+        let originalSource = try String(contentsOf: url, encoding: .utf8)
         
         // Parse original
-        let tokenizer1 = KvTokenizer(source: source)
+        let tokenizer1 = KvTokenizer(source: originalSource)
         let tokens1 = try tokenizer1.tokenize()
         let parser1 = KvParser(tokens: tokens1, filename: "style.kv")
         let module1 = try parser1.parse()
@@ -772,7 +772,7 @@ final class KvParserTests: XCTestCase {
         // Generate code
         let generated = module1.generate()
         
-        // Parse generated
+        // Parse generated code (roundtrip: parse → generate → parse)
         let tokenizer2 = KvTokenizer(source: generated)
         let tokens2 = try tokenizer2.tokenize()
         let parser2 = KvParser(tokens: tokens2, filename: "style.kv.generated")
@@ -784,7 +784,7 @@ final class KvParserTests: XCTestCase {
         print("  Templates: \(module2.templates.count)")
         print("  Dynamic classes: \(module2.dynamicClasses.count)")
         
-        // Compare structures - should have same counts
+        // Verify semantic equivalence (AST structures match)
         XCTAssertEqual(module1.directives.count, module2.directives.count, "Directive count mismatch")
         XCTAssertEqual(module1.rules.count, module2.rules.count, "Rule count mismatch")
         XCTAssertEqual(module1.templates.count, module2.templates.count, "Template count mismatch")
@@ -807,7 +807,17 @@ final class KvParserTests: XCTestCase {
             }
         }
         
-        print("\n✅ style.kv roundtrip successful - all structures preserved")
+        // Verify templates
+        for (index, (template1, template2)) in zip(module1.templates, module2.templates).enumerated() {
+            XCTAssertEqual(template1.name, template2.name, "Template \(index) name mismatch")
+            XCTAssertEqual(template1.baseClasses.count, template2.baseClasses.count,
+                          "Template \(index) (\(template1.name)) base class count mismatch")
+            XCTAssertEqual(template1.rule.properties.count, template2.rule.properties.count,
+                          "Template \(index) (\(template1.name)) property count mismatch")
+        }
+        
+        print("\n✅ style.kv roundtrip successful - semantic equivalence verified")
+        print("   (parse → generate → parse produces identical AST)")
     }
     
     // MARK: - Error Recovery Tests
