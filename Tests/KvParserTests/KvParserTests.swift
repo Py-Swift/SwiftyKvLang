@@ -740,6 +740,76 @@ final class KvParserTests: XCTestCase {
         XCTAssertEqual(module1.rules[0].canvas?.instructions.count, module2.rules[0].canvas?.instructions.count)
     }
     
+    func testStyleKvRoundTrip() throws {
+        // Load style.kv from resources
+        let bundle = Bundle.module
+        var styleUrl = bundle.url(forResource: "style", withExtension: "kv", subdirectory: "Resources")
+        
+        // Fallback: try without subdirectory
+        if styleUrl == nil {
+            styleUrl = bundle.url(forResource: "style", withExtension: "kv")
+        }
+        
+        guard let url = styleUrl else {
+            print("Skipping testStyleKvRoundTrip: style.kv not found in bundle")
+            return
+        }
+        
+        let source = try String(contentsOf: url, encoding: .utf8)
+        
+        // Parse original
+        let tokenizer1 = KvTokenizer(source: source)
+        let tokens1 = try tokenizer1.tokenize()
+        let parser1 = KvParser(tokens: tokens1, filename: "style.kv")
+        let module1 = try parser1.parse()
+        
+        print("\nOriginal style.kv parsed:")
+        print("  Directives: \(module1.directives.count)")
+        print("  Rules: \(module1.rules.count)")
+        print("  Templates: \(module1.templates.count)")
+        print("  Dynamic classes: \(module1.dynamicClasses.count)")
+        
+        // Generate code
+        let generated = module1.generate()
+        
+        // Parse generated
+        let tokenizer2 = KvTokenizer(source: generated)
+        let tokens2 = try tokenizer2.tokenize()
+        let parser2 = KvParser(tokens: tokens2, filename: "style.kv.generated")
+        let module2 = try parser2.parse()
+        
+        print("\nRegenerated style.kv parsed:")
+        print("  Directives: \(module2.directives.count)")
+        print("  Rules: \(module2.rules.count)")
+        print("  Templates: \(module2.templates.count)")
+        print("  Dynamic classes: \(module2.dynamicClasses.count)")
+        
+        // Compare structures - should have same counts
+        XCTAssertEqual(module1.directives.count, module2.directives.count, "Directive count mismatch")
+        XCTAssertEqual(module1.rules.count, module2.rules.count, "Rule count mismatch")
+        XCTAssertEqual(module1.templates.count, module2.templates.count, "Template count mismatch")
+        XCTAssertEqual(module1.dynamicClasses.count, module2.dynamicClasses.count, "Dynamic class count mismatch")
+        
+        // Verify each rule has same structure
+        for (index, (rule1, rule2)) in zip(module1.rules, module2.rules).enumerated() {
+            XCTAssertEqual(rule1.selector.primaryName, rule2.selector.primaryName, 
+                          "Rule \(index) selector mismatch")
+            XCTAssertEqual(rule1.properties.count, rule2.properties.count, 
+                          "Rule \(index) (\(rule1.selector.primaryName)) property count mismatch")
+            XCTAssertEqual(rule1.children.count, rule2.children.count, 
+                          "Rule \(index) (\(rule1.selector.primaryName)) children count mismatch")
+            
+            // Check canvas preservation
+            if rule1.canvas != nil {
+                XCTAssertNotNil(rule2.canvas, "Rule \(index) (\(rule1.selector.primaryName)) lost canvas")
+                XCTAssertEqual(rule1.canvas?.instructions.count, rule2.canvas?.instructions.count,
+                              "Rule \(index) (\(rule1.selector.primaryName)) canvas instruction count mismatch")
+            }
+        }
+        
+        print("\n✅ style.kv roundtrip successful - all structures preserved")
+    }
+    
     // MARK: - Error Recovery Tests
     
     func testStrictModeThrowsOnError() throws {

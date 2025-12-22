@@ -516,28 +516,25 @@ public final class KvParser {
             else if case .identifier(let name) = token.type {
                 let nextIdx = current + 1
                 if nextIdx < tokens.count, case .colon = tokens[nextIdx].type {
-                    // It's a property or child widget
-                    let nextNextIdx = nextIdx + 1
-                    if nextNextIdx < tokens.count {
-                        // Check if it's followed by INDENT (child widget) or value (property)
-                        skipTo(nextNextIdx)
-                        skipNewlines()
+                    // Distinguish between property and child widget:
+                    // - Widget names start with uppercase (Button, Label, BoxLayout)
+                    // - Property names start with lowercase or underscore (text, _internal_prop)
+                    let isWidget = name.first?.isUppercase ?? false
+                    
+                    if isWidget {
+                        // It's a child widget
+                        current = nextIdx - 1 // Reset to identifier
+                        let child = try parseWidget(level: 1) // level is relative
+                        children.append(child)
+                    } else {
+                        // It's a property (including multi-line properties)
+                        current = nextIdx - 1 // Reset to identifier
+                        let property = try parseProperty()
                         
-                        if case .indent = peek().type {
-                            // It's a child widget
-                            current = nextIdx - 1 // Reset to identifier
-                            let child = try parseWidget(level: 1) // level is relative
-                            children.append(child)
+                        if name.hasPrefix("on_") {
+                            handlers.append(property)
                         } else {
-                            // It's a property
-                            current = nextIdx - 1 // Reset to identifier
-                            let property = try parseProperty()
-                            
-                            if name.hasPrefix("on_") {
-                                handlers.append(property)
-                            } else {
-                                properties.append(property)
-                            }
+                            properties.append(property)
                         }
                     }
                 } else {
