@@ -23,6 +23,11 @@ public final class KvParser {
         var root: KvWidget? = nil
         var dynamicClasses: [String: String] = [:]
         
+        // Pre-allocate capacity based on typical style.kv structure
+        directives.reserveCapacity(4)
+        rules.reserveCapacity(80)
+        templates.reserveCapacity(5)
+        
         // First pass: extract directives
         directives = try parseDirectives()
         

@@ -86,7 +86,9 @@ public final class KvTokenizer: Sendable {
     
     /// Tokenize the source into a list of tokens
     public func tokenize() throws -> [Token] {
+        // Pre-allocate capacity (estimate ~7 tokens per line based on style.kv)
         var tokens: [Token] = []
+        tokens.reserveCapacity(lines.count * 7)
         
         while currentLine < lines.count {
             let line = lines[currentLine]

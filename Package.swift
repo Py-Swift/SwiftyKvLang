@@ -15,6 +15,11 @@ let package = Package(
             name: "KvParser",
             targets: ["KvParser"]
         ),
+        // Performance benchmark executable
+        .executable(
+            name: "benchmark",
+            targets: ["Benchmark"]
+        ),
     ],
     dependencies: [
         // Reference PySwiftAST for expression parsing patterns
@@ -27,6 +32,13 @@ let package = Package(
             name: "KvParser",
             dependencies: [],
             path: "Sources/KvParser"
+        ),
+        
+        // Performance benchmark executable
+        .executableTarget(
+            name: "Benchmark",
+            dependencies: ["KvParser"],
+            path: "Sources/Benchmark"
         ),
         
         // Tests for KV parser
