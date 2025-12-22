@@ -23,7 +23,7 @@ let package = Package(
     ],
     dependencies: [
         // PySwiftAST for parsing Python code in event handlers
-        .package(path: "./PySwiftAST")
+        .package(url: "https://github.com/Py-Swift/PySwiftAST.git", branch: "master")
     ],
     targets: [
         // KV language parser target
