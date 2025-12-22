@@ -30,6 +30,49 @@ public protocol TreeDisplayable {
     func treeDescription(indent: Int) -> String
 }
 
+/// Helper for generating tree-style output with proper box-drawing characters
+public struct TreeFormatter {
+    /// Generate tree prefix for a child at given depth
+    /// - Parameters:
+    ///   - depth: Nesting depth (0 = root)
+    ///   - isLast: Whether this is the last child
+    ///   - parentBranches: Array indicating which parent levels have more siblings
+    public static func prefix(depth: Int, isLast: Bool, parentBranches: [Bool] = []) -> String {
+        guard depth > 0 else { return "" }
+        
+        var result = ""
+        
+        // Draw parent branches
+        for i in 0..<(depth - 1) {
+            if i < parentBranches.count && parentBranches[i] {
+                result += "│   "  // Has more siblings at this level
+            } else {
+                result += "    "  // No more siblings at this level
+            }
+        }
+        
+        // Draw current branch
+        result += isLast ? "└── " : "├── "
+        
+        return result
+    }
+    
+    /// Generate continuation prefix for multi-line content
+    public static func continuation(depth: Int, parentBranches: [Bool] = []) -> String {
+        guard depth > 0 else { return "" }
+        
+        var result = ""
+        for i in 0..<depth {
+            if i < parentBranches.count && parentBranches[i] {
+                result += "│   "
+            } else {
+                result += "    "
+            }
+        }
+        return result
+    }
+}
+
 /// Position information for a node
 public struct SourcePosition: Sendable, Equatable {
     public let line: Int

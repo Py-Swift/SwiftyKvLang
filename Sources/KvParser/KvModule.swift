@@ -46,37 +46,86 @@ public struct KvModule: KvNode, Sendable {
 
 extension KvModule: TreeDisplayable {
     public func treeDescription(indent: Int = 0) -> String {
-        let prefix = String(repeating: "  ", count: indent)
-        var result = "\(prefix)KvModule:\n"
+        var result = "KvModule\n"
         
+        struct Section {
+            let name: String
+            let items: [String]
+        }
+        
+        var sections: [Section] = []
+        
+        // Collect directives
         if !directives.isEmpty {
-            result += "\(prefix)  Directives (\(directives.count)):\n"
+            var items: [String] = []
             for directive in directives {
-                result += directive.treeDescription(indent: indent + 2)
+                switch directive {
+                case .kivy(let version, _):
+                    items.append("kivy \(version)")
+                case .import(let alias, let package, _):
+                    items.append("import \(package) as \(alias)")
+                case .set(let name, let value, _):
+                    items.append("set \(name) = \(value)")
+                case .include(let path, let force, _):
+                    let forceStr = force ? " [force]" : ""
+                    items.append("include\(forceStr) \(path)")
+                }
             }
+            sections.append(Section(
+                name: "Directives (\(directives.count))",
+                items: items
+            ))
         }
         
+        // Collect rules
         if !rules.isEmpty {
-            result += "\(prefix)  Rules (\(rules.count)):\n"
-            for rule in rules {
-                result += rule.treeDescription(indent: indent + 2)
+            let items = rules.map { rule -> String in
+                let avoid = rule.avoidPrevious ? "-" : ""
+                return "<\(avoid)\(rule.selector.primaryName)> (\(rule.properties.count) props, \(rule.children.count) children)"
             }
+            sections.append(Section(
+                name: "Rules (\(rules.count))",
+                items: items
+            ))
         }
         
+        // Collect templates
         if !templates.isEmpty {
-            result += "\(prefix)  Templates (\(templates.count)):\n"
-            for template in templates {
-                result += template.treeDescription(indent: indent + 2)
-            }
+            let items = templates.map { "[\($0.name)@\($0.baseClasses.joined(separator: "+"))]" }
+            sections.append(Section(
+                name: "Templates (\(templates.count))",
+                items: items
+            ))
         }
         
+        // Collect root widget
         if let root = root {
-            result += "\(prefix)  Root Widget:\n"
-            result += root.treeDescription(indent: indent + 2)
+            sections.append(Section(
+                name: "Root Widget",
+                items: ["\(root.name) (\(root.children.count) children)"]
+            ))
         }
         
+        // Collect dynamic classes
         if !dynamicClasses.isEmpty {
-            result += "\(prefix)  Dynamic Classes: \(dynamicClasses.keys.joined(separator: ", "))\n"
+            sections.append(Section(
+                name: "Dynamic Classes (\(dynamicClasses.count))",
+                items: Array(dynamicClasses.keys).sorted()
+            ))
+        }
+        
+        // Format with tree characters
+        for (sectionIndex, section) in sections.enumerated() {
+            let isLastSection = sectionIndex == sections.count - 1
+            let sectionPrefix = isLastSection ? "└── " : "├── "
+            result += "\(sectionPrefix)\(section.name)\n"
+            
+            for (itemIndex, item) in section.items.enumerated() {
+                let isLastItem = itemIndex == section.items.count - 1
+                let continuation = isLastSection ? "    " : "│   "
+                let itemPrefix = isLastItem ? "└── " : "├── "
+                result += "\(continuation)\(itemPrefix)\(item)\n"
+            }
         }
         
         return result
