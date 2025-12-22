@@ -580,4 +580,163 @@ final class KvParserTests: XCTestCase {
         XCTAssertNotNil(opacityProp)
         XCTAssertTrue(opacityProp?.keys.contains(["self", "disabled"]) ?? false)
     }
+    
+    // MARK: - Code Generation Tests
+    
+    func testGenerateSimpleRule() throws {
+        let source = """
+        <Button>:
+            text: 'Click me'
+            width: 100
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        let generated = module.generate()
+        
+        XCTAssertTrue(generated.contains("<Button>"))
+        XCTAssertTrue(generated.contains("text: "))
+        XCTAssertTrue(generated.contains("width: 100"))
+    }
+    
+    func testGenerateDirectives() throws {
+        let source = """
+        #:kivy 1.0
+        #:import math math
+        #:set BACKGROUND_COLOR [1, 1, 1, 1]
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        let generated = module.generate()
+        
+        XCTAssertTrue(generated.contains("#:kivy 1.0"))
+        XCTAssertTrue(generated.contains("#:import"))
+        XCTAssertTrue(generated.contains("#:set"))
+    }
+    
+    func testGenerateNestedWidgets() throws {
+        let source = """
+        BoxLayout:
+            Button:
+                text: 'Button 1'
+            Label:
+                text: 'Label 1'
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        let generated = module.generate()
+        
+        XCTAssertTrue(generated.contains("BoxLayout:"))
+        XCTAssertTrue(generated.contains("Button:"))
+        XCTAssertTrue(generated.contains("Label:"))
+        XCTAssertTrue(generated.contains("text: "))
+    }
+    
+    func testGenerateCanvas() throws {
+        let source = """
+        <Button>:
+            canvas:
+                Color:
+                    rgba: 1, 1, 1, 1
+                Rectangle:
+                    pos: self.pos
+                    size: self.size
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        let generated = module.generate()
+        
+        XCTAssertTrue(generated.contains("canvas:"))
+        XCTAssertTrue(generated.contains("Color:"))
+        XCTAssertTrue(generated.contains("Rectangle:"))
+        XCTAssertTrue(generated.contains("rgba: 1 , 1 , 1 , 1"))
+        XCTAssertTrue(generated.contains("pos: self.pos"))
+    }
+    
+    func testGenerateMultipleSelectors() throws {
+        let source = """
+        <Button,Label>:
+            font_size: 14
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        let generated = module.generate()
+        
+        XCTAssertTrue(generated.contains("<Button,Label>"))
+        XCTAssertTrue(generated.contains("font_size: 14"))
+    }
+    
+    func testGenerateAvoidanceSelector() throws {
+        let source = """
+        <-Button>:
+            text: 'Default'
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        let generated = module.generate()
+        
+        XCTAssertTrue(generated.contains("<-Button>"))
+        XCTAssertTrue(generated.contains("text: "))
+    }
+    
+    func testRoundTrip() throws {
+        let source = """
+        #:kivy 1.0
+        
+        <Button>:
+            text: 'Click'
+            width: self.parent.width
+            canvas:
+                Color:
+                    rgba: 1, 1, 1, 1
+        """
+        
+        // Parse original
+        let tokenizer1 = KvTokenizer(source: source)
+        let tokens1 = try tokenizer1.tokenize()
+        let parser1 = KvParser(tokens: tokens1)
+        let module1 = try parser1.parse()
+        
+        // Generate code
+        let generated = module1.generate()
+        
+        // Parse generated
+        let tokenizer2 = KvTokenizer(source: generated)
+        let tokens2 = try tokenizer2.tokenize()
+        let parser2 = KvParser(tokens: tokens2)
+        let module2 = try parser2.parse()
+        
+        // Compare structures
+        XCTAssertEqual(module1.directives.count, module2.directives.count)
+        XCTAssertEqual(module1.rules.count, module2.rules.count)
+        XCTAssertEqual(module1.rules[0].properties.count, module2.rules[0].properties.count)
+        
+        // Check canvas is preserved
+        XCTAssertNotNil(module1.rules[0].canvas)
+        XCTAssertNotNil(module2.rules[0].canvas)
+        XCTAssertEqual(module1.rules[0].canvas?.instructions.count, module2.rules[0].canvas?.instructions.count)
+    }
 }
