@@ -438,4 +438,146 @@ final class KvParserTests: XCTestCase {
         XCTAssertEqual(handler.compiled.mode, .exec)
         XCTAssertTrue(handler.compiled.isConstant)
     }
+    
+    // MARK: - Visitor Tests
+    
+    func testPropertyNameCollector() throws {
+        let source = """
+        <Button>:
+            text: 'Click me'
+            width: 100
+            height: 50
+            on_press: print('pressed')
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        var collector = PropertyNameCollector()
+        module.accept(visitor: &collector)
+        
+        XCTAssertEqual(collector.propertyNames.count, 4)
+        XCTAssertTrue(collector.propertyNames.contains("text"))
+        XCTAssertTrue(collector.propertyNames.contains("width"))
+        XCTAssertTrue(collector.propertyNames.contains("height"))
+        XCTAssertTrue(collector.propertyNames.contains("on_press"))
+    }
+    
+    func testWidgetNameCollector() throws {
+        let source = """
+        BoxLayout:
+            Button:
+                text: 'Button 1'
+            Label:
+                text: 'Label 1'
+            BoxLayout:
+                Label:
+                    text: 'Nested'
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        var collector = WidgetNameCollector()
+        module.accept(visitor: &collector)
+        
+        XCTAssertEqual(collector.widgetNames.count, 5)
+        XCTAssertEqual(collector.widgetNames[0], "BoxLayout")
+        XCTAssertEqual(collector.widgetNames[1], "Button")
+        XCTAssertEqual(collector.widgetNames[2], "Label")
+        XCTAssertEqual(collector.widgetNames[3], "BoxLayout")
+        XCTAssertEqual(collector.widgetNames[4], "Label")
+    }
+    
+    func testSelectorCollector() throws {
+        let source = """
+        <Button>:
+            text: 'button'
+        
+        <Label>:
+            text: 'label'
+        
+        <.highlight>:
+            color: 1, 1, 0, 1
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        var collector = SelectorCollector()
+        module.accept(visitor: &collector)
+        
+        XCTAssertEqual(collector.selectors.count, 3)
+        XCTAssertTrue(collector.selectors.contains("Button"))
+        XCTAssertTrue(collector.selectors.contains("Label"))
+        XCTAssertTrue(collector.selectors.contains(".highlight"))
+    }
+    
+    func testASTStatistics() throws {
+        let source = """
+        #:kivy 1.0
+        
+        <Button>:
+            text: 'Click'
+            width: self.parent.width
+            canvas:
+                Color:
+                    rgba: 1, 1, 1, 1
+                Rectangle:
+                    pos: self.pos
+                    size: self.size
+        
+        <Label>:
+            text: 'Label'
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        var stats = ASTStatistics()
+        module.accept(visitor: &stats)
+        
+        XCTAssertEqual(stats.directiveCount, 1)
+        XCTAssertEqual(stats.ruleCount, 2)
+        XCTAssertEqual(stats.propertyCount, 6) // Button: text, width, canvas(rgba, pos, size), Label: text
+        XCTAssertEqual(stats.canvasInstructionCount, 2) // Color, Rectangle
+    }
+    
+    func testWatchedPropertyFinder() throws {
+        let source = """
+        <Button>:
+            text: 'Static'
+            width: self.parent.width
+            opacity: .7 if self.disabled else 1
+            size_hint: None, None
+        """
+        
+        let tokenizer = KvTokenizer(source: source)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        var finder = WatchedPropertyFinder()
+        module.accept(visitor: &finder)
+        
+        // Should find 2 properties with watched keys (width and opacity)
+        XCTAssertEqual(finder.watchedProperties.count, 2)
+        
+        let widthProp = finder.watchedProperties.first { $0.property == "width" }
+        XCTAssertNotNil(widthProp)
+        XCTAssertEqual(widthProp?.rule, "Button")
+        XCTAssertTrue(widthProp?.keys.contains(["self", "parent", "width"]) ?? false)
+        
+        let opacityProp = finder.watchedProperties.first { $0.property == "opacity" }
+        XCTAssertNotNil(opacityProp)
+        XCTAssertTrue(opacityProp?.keys.contains(["self", "disabled"]) ?? false)
+    }
 }
