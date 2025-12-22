@@ -128,48 +128,55 @@ extension KvWidget: TreeDisplayable {
         var childIndex = 0
         let totalItems = properties.count + handlers.count + (canvasBefore != nil ? 1 : 0) + (canvas != nil ? 1 : 0) + (canvasAfter != nil ? 1 : 0) + children.count
         
+        // Properties
         for prop in properties {
             let isLast = childIndex == totalItems - 1
             let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
-            result += "\(prefix)\(prop.name): \(prop.value)\n"
+            result += "\(prefix)⚙︎ \(prop.name): \(prop.value) [property, line \(prop.line)]\n"
             childIndex += 1
         }
         
+        // Event handlers
         for handler in handlers {
             let isLast = childIndex == totalItems - 1
             let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
-            result += "\(prefix)\(handler.name): \(handler.value)\n"
+            result += "\(prefix)⚡︎ \(handler.name): \(handler.value) [handler, line \(handler.line)]\n"
             childIndex += 1
         }
         
+        // Canvas.before
         if let canvasBefore = canvasBefore {
             let isLast = childIndex == totalItems - 1
             let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
-            result += "\(prefix)canvas.before\n"
+            result += "\(prefix)🎨 canvas.before [canvas, line \(canvasBefore.line)]\n"
             result += canvasBefore.detailedContent(depth: depth + 1, parentBranches: parentBranches + [!isLast])
             childIndex += 1
         }
         
+        // Canvas
         if let canvas = canvas {
             let isLast = childIndex == totalItems - 1
             let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
-            result += "\(prefix)canvas\n"
+            result += "\(prefix)🎨 canvas [canvas, line \(canvas.line)]\n"
             result += canvas.detailedContent(depth: depth + 1, parentBranches: parentBranches + [!isLast])
             childIndex += 1
         }
         
+        // Canvas.after
         if let canvasAfter = canvasAfter {
             let isLast = childIndex == totalItems - 1
             let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
-            result += "\(prefix)canvas.after\n"
+            result += "\(prefix)🎨 canvas.after [canvas, line \(canvasAfter.line)]\n"
             result += canvasAfter.detailedContent(depth: depth + 1, parentBranches: parentBranches + [!isLast])
             childIndex += 1
         }
         
+        // Child widgets
         for child in children {
             let isLast = childIndex == totalItems - 1
             let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
-            result += "\(prefix)\(child.name)\n"
+            let idInfo = child.id != nil ? ", id: \(child.id!)" : ""
+            result += "\(prefix)📦 \(child.name) [widget, line \(child.line)\(idInfo)]\n"
             result += child.detailedContent(depth: depth + 1, parentBranches: parentBranches + [!isLast])
             childIndex += 1
         }

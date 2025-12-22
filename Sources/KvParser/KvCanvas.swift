@@ -64,13 +64,13 @@ extension KvCanvas: TreeDisplayable {
         for (index, instruction) in instructions.enumerated() {
             let isLast = index == instructions.count - 1
             let prefix = TreeFormatter.prefix(depth: depth, isLast: isLast, parentBranches: parentBranches)
-            result += "\(prefix)\(instruction.instructionType)\n"
+            result += "\(prefix)🖌️ \(instruction.instructionType) [instruction, line \(instruction.line)]\n"
             
             // Add properties of the instruction
             for (propIndex, prop) in instruction.properties.enumerated() {
                 let isPropLast = propIndex == instruction.properties.count - 1
                 let propPrefix = TreeFormatter.prefix(depth: depth + 1, isLast: isPropLast, parentBranches: parentBranches + [!isLast])
-                result += "\(propPrefix)\(prop.name): \(prop.value)\n"
+                result += "\(propPrefix)⚙︎ \(prop.name): \(prop.value) [property, line \(prop.line)]\n"
             }
         }
         
