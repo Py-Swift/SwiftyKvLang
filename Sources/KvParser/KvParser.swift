@@ -177,11 +177,12 @@ public final class KvParser {
         }
         advance()
         
-        // Expect :
-        guard case .colon = peek().type else {
-            throw KvParserError.unexpectedToken(token: peek(), expected: ":")
+        skipNewlines()  // Allow newlines before colon
+        
+        // Optionally expect : (colon is optional in KV lang)
+        if case .colon = peek().type {
+            advance()
         }
-        advance()
         
         skipNewlines()
         
@@ -382,7 +383,8 @@ public final class KvParser {
         }
         advance()
         
-        // Expect :
+        // Expect : (but be tolerant of newline first)
+        skipNewlines()
         guard case .colon = peek().type else {
             throw KvParserError.unexpectedToken(token: peek(), expected: ":")
         }
@@ -566,6 +568,44 @@ public final class KvParser {
             advance()
         }
         
+        // Check for multi-line continuation (NEWLINE followed by INDENT)
+        if case .newline = peek().type {
+            advance() // consume newline
+            
+            if case .indent = peek().type {
+                advance() // consume indent
+                
+                // Collect continuation lines
+                while !isAtEnd {
+                    skipNewlines()
+                    
+                    let token = peek()
+                    if case .dedent = token.type {
+                        advance() // consume dedent
+                        break
+                    }
+                    if case .indent = token.type {
+                        // Nested indent within multi-line value - just consume and continue
+                        advance()
+                        continue
+                    }
+                    
+                    // Collect tokens on this continuation line
+                    while !isAtEnd {
+                        let token = peek()
+                        if case .newline = token.type {
+                            break
+                        }
+                        if case .dedent = token.type {
+                            break
+                        }
+                        valueTokens.append(token)
+                        advance()
+                    }
+                }
+            }
+        }
+        
         // Reconstruct value string from tokens
         let value = reconstructValue(from: valueTokens)
         
@@ -629,17 +669,18 @@ public final class KvParser {
             if case .identifier(let instructionType) = token.type {
                 advance()
                 
-                // Expect :
-                guard case .colon = peek().type else {
-                    throw KvParserError.unexpectedToken(token: peek(), expected: ":")
-                }
-                advance()
-                
+                // Check if there's a colon (instruction with properties) or not (simple command)
                 skipNewlines()
+                let hasColon = peek().type == .colon
+                
+                if hasColon {
+                    advance() // consume colon
+                    skipNewlines()
+                }
                 
                 // Parse instruction properties
                 var properties: [KvProperty] = []
-                if case .indent = peek().type {
+                if hasColon, case .indent = peek().type {
                     advance()
                     
                     while !isAtEnd {
