@@ -1,41 +1,11 @@
 # Performance Baseline
 
-## Swift KV Parser - UTF-8 Optimized
+## Swift KV Parser - Initial Baseline (Character-based)
 
-**Date:** December 23, 2025  
+**Date:** December 22, 2025  
 **Hardware:** Apple Silicon (M-series)  
 **Build:** Release mode (`-c release`)  
 **File:** style.kv (1,341 lines, 43,518 bytes)
-
-### Results (100 iterations) - After UTF-8 Optimization
-
-#### Tokenization
-- **Mean:** 0.490 ms ⚡️ **12.7x faster**
-- **Median:** 0.456 ms
-- **StdDev:** 0.107 ms
-- **Range:** 0.409 - 1.006 ms
-
-#### Parsing
-- **Mean:** 1.622 ms
-- **Median:** 1.575 ms
-- **StdDev:** 0.189 ms
-- **Range:** 1.371 - 2.275 ms
-
-#### Total Time
-- **Mean:** 2.113 ms ⚡️ **3.5x faster overall**
-- **Median:** 2.054 ms
-- **StdDev:** 0.245 ms
-- **Range:** 1.788 - 2.940 ms
-
-### Throughput
-- **634,756 lines/second** (was 179,466) - **3.5x improvement**
-- **20,116 KB/second** (was 5,687) - **3.5x improvement**
-
----
-
-## Previous Baseline (Character-based tokenizer)
-
-**Date:** December 22, 2025
 
 ### Results (100 iterations)
 
@@ -61,6 +31,77 @@
 - **181,783 lines/second**
 - **5,761 KB/second**
 
+### Analysis
+
+The Swift implementation shows excellent performance:
+
+1. **Fast tokenization** (~6.2ms): YAML-inspired indentation detection
+2. **Very fast parsing** (~1.2ms): Efficient recursive descent with minimal allocations
+3. **Consistent performance**: Low standard deviation indicates stable performance
+4. **Good throughput**: ~182K lines/sec is suitable for real-time IDE integration
+
+### Performance Breakdown
+
+- **Tokenization:** 84.7% of total time
+- **Parsing:** 15.3% of total time
+
+The tokenization phase dominates, which is expected for a lexer doing line-by-line scanning and YAML-style indent/dedent detection.
+
+---
+
+## UTF-8 Optimized Results
+
+**Date:** December 23, 2025  
+**Optimization:** Migrated tokenizer from Character-based iteration to UTF-8 byte-level scanning
+
+### Results (100 iterations)
+
+#### Tokenization
+- **Mean:** 0.490 ms
+- **Median:** 0.456 ms
+- **StdDev:** 0.107 ms
+- **Range:** 0.409 - 1.006 ms
+
+#### Parsing
+- **Mean:** 1.622 ms
+- **Median:** 1.575 ms
+- **StdDev:** 0.189 ms
+- **Range:** 1.371 - 2.275 ms
+
+#### Total Time
+- **Mean:** 2.113 ms
+- **Median:** 2.054 ms
+- **StdDev:** 0.245 ms
+- **Range:** 1.788 - 2.940 ms
+
+### Throughput
+- **634,756 lines/second**
+- **20,116 KB/second**
+
+### Throughput
+- **634,756 lines/second**
+- **20,116 KB/second**
+
+---
+
+## Performance Comparison
+
+### Tokenization
+- **Before:** 6.207 ms → **After:** 0.490 ms
+- **Improvement:** **12.7x faster** (92.1% reduction)
+
+### Parsing
+- **Before:** 1.170 ms → **After:** 1.622 ms
+- **Change:** 1.4x slower (parser now includes Python AST integration overhead)
+
+### Total Time
+- **Before:** 7.377 ms → **After:** 2.113 ms
+- **Improvement:** **3.5x faster** (71.4% reduction)
+
+### Throughput
+- **Before:** 181,783 lines/sec → **After:** 634,756 lines/sec
+- **Improvement:** **3.5x increase**
+
 ---
 
 ## Optimization Analysis
@@ -68,14 +109,6 @@
 ### UTF-8 Byte-Level Scanning Results
 
 The migration from Character-based iteration to UTF-8 byte-level scanning delivered exceptional performance gains:
-
-**Tokenization Improvement: 12.7x faster**
-- Before: 6.207 ms → After: 0.490 ms
-- **92.1% reduction** in tokenization time
-
-**Overall Improvement: 3.5x faster**
-- Before: 7.377 ms → After: 2.113 ms
-- **71.4% reduction** in total parse time
 
 ### Key Optimizations Applied
 
