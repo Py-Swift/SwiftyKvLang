@@ -53,6 +53,7 @@ The tokenization phase dominates, which is expected for a lexer doing line-by-li
 
 **Date:** December 23, 2025  
 **Optimization:** Migrated tokenizer from Character-based iteration to UTF-8 byte-level scanning
+**File:** style.kv (1,341 lines, 43,518 bytes)
 
 ### Results (100 iterations)
 
