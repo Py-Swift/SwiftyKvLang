@@ -75,6 +75,41 @@ class PropertyExpressionVisitor: ExpressionVisitor {
     func visitSlice(_ node: Slice) {}
 }
 
+// MARK: - Expression Replacement Helper
+
+/// Replace an attribute access (obj.attr) with a name reference in an expression tree
+private func replaceAttributeWithName(_ expr: PySwiftAST.Expression, object: String, attr: String, replacement: String) -> PySwiftAST.Expression {
+    switch expr {
+    case .attribute(let attrNode):
+        // Check if this is the attribute we want to replace
+        if case .name(let nameNode) = attrNode.value, nameNode.id == object, attrNode.attr == attr {
+            // Replace with name reference
+            return .name(Name(id: replacement, ctx: .load, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil))
+        }
+        return expr
+        
+    case .joinedStr(let joinedStr):
+        // Recursively process f-string values
+        let newValues = joinedStr.values.map { replaceAttributeWithName($0, object: object, attr: attr, replacement: replacement) }
+        return .joinedStr(JoinedStr(values: newValues, lineno: joinedStr.lineno, colOffset: joinedStr.colOffset, endLineno: joinedStr.endLineno, endColOffset: joinedStr.endColOffset))
+        
+    case .formattedValue(let formattedValue):
+        // Recursively process the value inside {}
+        let newValue = replaceAttributeWithName(formattedValue.value, object: object, attr: attr, replacement: replacement)
+        return .formattedValue(FormattedValue(value: newValue, conversion: formattedValue.conversion, formatSpec: formattedValue.formatSpec, lineno: formattedValue.lineno, colOffset: formattedValue.colOffset, endLineno: formattedValue.endLineno, endColOffset: formattedValue.endColOffset))
+        
+    case .call(let call):
+        // Recursively process function and arguments
+        let newFun = replaceAttributeWithName(call.fun, object: object, attr: attr, replacement: replacement)
+        let newArgs = call.args.map { replaceAttributeWithName($0, object: object, attr: attr, replacement: replacement) }
+        return .call(Call(fun: newFun, args: newArgs, keywords: call.keywords, lineno: call.lineno, colOffset: call.colOffset, endLineno: call.endLineno, endColOffset: call.endColOffset))
+        
+    default:
+        // For other expression types, return as-is
+        return expr
+    }
+}
+
 /// Generates Python class code from KV language rules
 ///
 /// Kivy's Builder dynamically applies KV rules to widgets at runtime.
@@ -721,8 +756,6 @@ public struct KvToPyClassGenerator {
             return nil
         }
         
-        let valueStr = property.value.trimmingCharacters(in: .whitespaces)
-        
         // For simple bindings (single watched key, direct property access)
         if watchedKeys.count == 1, watchedKeys[0].count == 2 {
             let sourceObj = watchedKeys[0][0]
@@ -823,13 +856,11 @@ public struct KvToPyClassGenerator {
             return []
         }
         
-        let valueStr = property.value.trimmingCharacters(in: .whitespaces)
-        
         // Parse the expression to get the AST
         let (parsedExpr, _) = parsePropertyExpression(property)
         
         // For simple bindings (single watched key, direct property access)
-        if watchedKeys.count == 1, watchedKeys[0].count == 2, let expr = parsedExpr {
+        if watchedKeys.count == 1, watchedKeys[0].count == 2, parsedExpr != nil {
             let sourceObj = watchedKeys[0][0]
             let sourceProp = watchedKeys[0][1]
             
@@ -882,14 +913,20 @@ public struct KvToPyClassGenerator {
                 let sourceObj = watchedKey[0]
                 let sourceProp = watchedKey[1]
                 
-                // Create lambda: lambda *args: setattr(widget, 'property', expression)
+                // Generate parameter name: app.title -> app_title
+                let paramName = "\(sourceObj)_\(sourceProp)"
+                
+                // Replace the watched attribute (app.title) with the parameter name in the expression
+                let modifiedExpr = replaceAttributeWithName(expr, object: sourceObj, attr: sourceProp, replacement: paramName)
+                
+                // Create lambda: lambda instance, param_name: setattr(widget, 'property', expression)
                 let lambdaBody = PySwiftAST.Expression.call(
                     Call(
                         fun: .name(makeName("setattr")),
                         args: [
                             .name(makeName(widgetVarName)),
                             .constant(makeConstant(.string(property.name))),
-                            expr
+                            modifiedExpr
                         ],
                         keywords: [],
                         lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
@@ -899,8 +936,11 @@ public struct KvToPyClassGenerator {
                 let lambda = Lambda(
                     args: Arguments(
                         posonlyArgs: [],
-                        args: [],
-                        vararg: Arg(arg: "args", annotation: nil, typeComment: nil),
+                        args: [
+                            Arg(arg: "instance", annotation: nil, typeComment: nil),
+                            Arg(arg: paramName, annotation: nil, typeComment: nil)
+                        ],
+                        vararg: nil,
                         kwonlyArgs: [],
                         kwDefaults: [],
                         kwarg: nil,
