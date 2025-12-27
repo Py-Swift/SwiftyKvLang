@@ -264,6 +264,13 @@ public struct KvToPyClassGenerator {
             body.append(.pass(Pass(lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)))
         }
         
+        // Add event handler methods
+        for handler in rule.handlers {
+            if let handlerMethod = try generateEventHandlerMethod(handler) {
+                body.append(handlerMethod)
+            }
+        }
+        
         // Add any additional methods from Python code (as AST nodes)
         if let pythonClass = pythonClasses.first(where: { $0.name == className }) {
             for method in pythonClass.methods {
@@ -370,6 +377,7 @@ public struct KvToPyClassGenerator {
         }
         
         // Set properties (self.property = value)
+        // Event handlers are in rule.handlers, not rule.properties
         for property in rule.properties {
             if needsBinding(property) {
                 // Generate binding with initial value and bind call
@@ -397,6 +405,13 @@ public struct KvToPyClassGenerator {
         // Add bind() calls for reactive properties after all initialization
         for property in rule.properties {
             if needsBinding(property), let bindCall = generateBindingCall(property) {
+                body.append(bindCall)
+            }
+        }
+        
+        // Add event handler bindings (on_press, on_release, etc.)
+        for handler in rule.handlers {
+            if let bindCall = generateEventHandlerBinding(handler) {
                 body.append(bindCall)
             }
         }
@@ -516,6 +531,11 @@ public struct KvToPyClassGenerator {
         return valueStr.contains("app.") || valueStr.contains("self.") || valueStr.contains("root.")
     }
     
+    private func isEventHandler(_ property: KvProperty) -> Bool {
+        // Event handlers in Kivy start with "on_"
+        return property.name.hasPrefix("on_")
+    }
+    
     private func generatePropertyBinding(_ property: KvProperty, targetName: String = "self") throws -> Statement {
         let valueStr = property.value.trimmingCharacters(in: .whitespaces)
         
@@ -617,6 +637,204 @@ public struct KvToPyClassGenerator {
         return .expr(Expr(value: bindCall, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil))
     }
     
+    /// Generate binding for event handlers (on_press, on_release, etc.)
+    /// Returns: self.bind(on_press=self._on_press_handler)
+    private func generateEventHandlerBinding(_ property: KvProperty) -> Statement? {
+        guard isEventHandler(property) else { return nil }
+        
+        let handlerName = "_\(property.name)_handler"
+        
+        // self.bind(on_event=self._on_event_handler)
+        let bindCall = Call(
+            fun: .attribute(
+                Attribute(
+                    value: .name(makeName("self")),
+                    attr: "bind",
+                    ctx: .load,
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                )
+            ),
+            args: [],
+            keywords: [Keyword(
+                arg: property.name,
+                value: .attribute(
+                    Attribute(
+                        value: .name(makeName("self")),
+                        attr: handlerName,
+                        ctx: .load,
+                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                    )
+                )
+            )],
+            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+        )
+        
+        return .expr(Expr(value: .call(bindCall), lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil))
+    }
+    
+    /// Generate an event handler method
+    /// Returns: def _on_event_handler(self, instance): <handler code>
+    private func generateEventHandlerMethod(_ property: KvProperty) throws -> Statement? {
+        guard isEventHandler(property) else { return nil }
+        
+        let handlerName = "_\(property.name)_handler"
+        
+        // Parse the handler code
+        let handlerCode = property.value.trimmingCharacters(in: .whitespaces)
+        
+        // Try to parse as Python expression/statement
+        var body: [Statement] = []
+        
+        // For now, handle simple cases:
+        // 1. Function calls like "app.handle_click()" or "print('hello')"
+        // 2. Simple expressions
+        
+        if handlerCode.contains("(") && handlerCode.contains(")") {
+            // Looks like a function call
+            do {
+                let expr = try parsePythonExpression(handlerCode)
+                body.append(.expr(Expr(value: expr, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)))
+            } catch {
+                // If parsing fails, add a pass statement
+                body.append(.pass(Pass(lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)))
+            }
+        } else {
+            // Simple expression or pass
+            body.append(.pass(Pass(lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)))
+        }
+        
+        let functionDef = FunctionDef(
+            name: handlerName,
+            args: Arguments(
+                posonlyArgs: [],
+                args: [
+                    Arg(arg: "self", annotation: nil, typeComment: nil),
+                    Arg(arg: "instance", annotation: nil, typeComment: nil)
+                ],
+                vararg: nil,
+                kwonlyArgs: [],
+                kwDefaults: [],
+                kwarg: nil,
+                defaults: []
+            ),
+            body: body,
+            decoratorList: [],
+            returns: nil,
+            typeComment: nil,
+            typeParams: [],
+            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+        )
+        
+        return .functionDef(functionDef)
+    }
+    
+    /// Parse a Python expression from string
+    private func parsePythonExpression(_ code: String) throws -> PySwiftAST.Expression {
+        // Handle common patterns
+        
+        // print("text")
+        if code.hasPrefix("print(") && code.hasSuffix(")") {
+            let content = String(code.dropFirst(6).dropLast(1))
+            let arg: PySwiftAST.Expression
+            
+            // Check if it's a string literal
+            if content.hasPrefix("\"") && content.hasSuffix("\"") {
+                let stringContent = String(content.dropFirst(1).dropLast(1))
+                arg = .constant(makeConstant(.string(stringContent)))
+            } else if content.hasPrefix("'") && content.hasSuffix("'") {
+                let stringContent = String(content.dropFirst(1).dropLast(1))
+                arg = .constant(makeConstant(.string(stringContent)))
+            } else {
+                // It's an expression
+                arg = try parsePythonExpression(content)
+            }
+            
+            return .call(
+                Call(
+                    fun: .name(makeName("print")),
+                    args: [arg],
+                    keywords: [],
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                )
+            )
+        }
+        
+        // app.method() or self.method()
+        if code.contains(".") && code.contains("(") {
+            let parts = code.components(separatedBy: "(")
+            let callPart = parts[0]
+            let dotParts = callPart.components(separatedBy: ".")
+            
+            if dotParts.count == 2 {
+                let obj = dotParts[0]
+                let method = dotParts[1]
+                
+                return .call(
+                    Call(
+                        fun: .attribute(
+                            Attribute(
+                                value: .name(makeName(obj)),
+                                attr: method,
+                                ctx: .load,
+                                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                            )
+                        ),
+                        args: [],
+                        keywords: [],
+                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                    )
+                )
+            }
+        }
+        
+        // Fallback: return a name
+        return .name(makeName(code))
+    }
+    
+    /// Generate binding for event handlers on child widgets
+    /// Returns: widget.bind(on_press=lambda instance: handler_code)
+    private func generateChildWidgetEventBinding(_ handler: KvProperty, widgetVarName: String) throws -> Statement? {
+        let handlerCode = handler.value.trimmingCharacters(in: .whitespaces)
+        
+        // Parse the handler expression
+        let handlerExpr = try parsePythonExpression(handlerCode)
+        
+        // Create lambda: lambda instance: handler_expression
+        let lambdaFunc = Lambda(
+            args: Arguments(
+                posonlyArgs: [],
+                args: [Arg(arg: "instance", annotation: nil, typeComment: nil)],
+                vararg: nil,
+                kwonlyArgs: [],
+                kwDefaults: [],
+                kwarg: nil,
+                defaults: []
+            ),
+            body: handlerExpr,
+            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+        )
+        
+        // widget.bind(on_event=lambda_func)
+        let bindCall = Call(
+            fun: .attribute(
+                Attribute(
+                    value: .name(makeName(widgetVarName)),
+                    attr: "bind",
+                    ctx: .load,
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                )
+            ),
+            args: [],
+            keywords: [Keyword(
+                arg: handler.name,
+                value: .lambda(lambdaFunc)
+            )],
+            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+        )
+        
+        return .expr(Expr(value: .call(bindCall), lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil))
+    }
+    
     /// Create and add a child widget with proper handling of nested children and ids
     /// Returns statements that create the widget, store it if it has an id, add its children, and add it to parent
     private func createAndAddChildWidget(_ widget: KvWidget, parentName: String, widgetVarName: String? = nil) throws -> [Statement] {
@@ -681,6 +899,14 @@ public struct KvToPyClassGenerator {
         // Add children to this widget recursively
         for child in widget.children {
             statements.append(contentsOf: try createAndAddChildWidget(child, parentName: varName))
+        }
+        
+        // Bind event handlers for this widget
+        for handler in widget.handlers {
+            // Generate inline handler binding: widget.bind(on_press=lambda instance: print("hello"))
+            if let bindStmt = try generateChildWidgetEventBinding(handler, widgetVarName: varName) {
+                statements.append(bindStmt)
+            }
         }
         
         // Add this widget to parent

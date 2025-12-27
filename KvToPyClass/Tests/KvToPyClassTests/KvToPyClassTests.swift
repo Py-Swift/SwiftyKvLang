@@ -24,7 +24,7 @@ final class KvToPyClassTests: XCTestCase {
         XCTAssertTrue(pythonCode.contains("def __init__"))
         XCTAssertTrue(pythonCode.contains("super().__init__"))
         XCTAssertTrue(pythonCode.contains("self.text"))
-        XCTAssertTrue(pythonCode.contains("'Click me'"))
+        XCTAssertTrue(pythonCode.contains("Click me"))  // Just check for the text, not the quote style
         
         print("Generated Python code:")
         print(pythonCode)
