@@ -527,8 +527,11 @@ public struct KvToPyClassGenerator {
     }
     
     private func needsBinding(_ property: KvProperty) -> Bool {
-        let valueStr = property.value.trimmingCharacters(in: .whitespaces)
-        return valueStr.contains("app.") || valueStr.contains("self.") || valueStr.contains("root.")
+        // Use the pre-computed watchedKeys from the parser instead of manual string parsing
+        if let watchedKeys = property.watchedKeys, !watchedKeys.isEmpty {
+            return true
+        }
+        return false
     }
     
     private func isEventHandler(_ property: KvProperty) -> Bool {
@@ -539,12 +542,66 @@ public struct KvToPyClassGenerator {
     private func generatePropertyBinding(_ property: KvProperty, targetName: String = "self") throws -> Statement {
         let valueStr = property.value.trimmingCharacters(in: .whitespaces)
         
-        // Parse the binding expression to extract the source object and property
-        // e.g., "app.some_prop" -> source: app, prop: some_prop
-        let parts = valueStr.split(separator: ".").map(String.init)
-        guard parts.count >= 2 else {
-            // Fallback to simple assignment
-            let assignment = Assign(
+        // For simple property bindings like "app.title" use direct assignment
+        // For complex expressions like f-strings or str() use eval
+        let isSimpleBinding = valueStr.split(separator: ".").count == 2 && 
+                             !valueStr.contains("(") && 
+                             !valueStr.hasPrefix("f\"") && 
+                             !valueStr.hasPrefix("f'")
+        
+        if isSimpleBinding {
+            // Simple case: app.some_prop -> self.property = app.some_prop
+            let parts = valueStr.split(separator: ".").map(String.init)
+            guard parts.count >= 2 else {
+                // Fallback to string constant
+                let initialAssign = Assign(
+                    targets: [.attribute(
+                        Attribute(
+                            value: .name(makeName(targetName)),
+                            attr: property.name,
+                            ctx: .store,
+                            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                        )
+                    )],
+                    value: .constant(makeConstant(.string(valueStr))),
+                    typeComment: nil,
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                )
+                return .assign(initialAssign)
+            }
+            
+            let sourceObj = parts[0]
+            let sourceProp = parts[1...].joined(separator: ".")
+            
+            let initialAssign = Assign(
+                targets: [.attribute(
+                    Attribute(
+                        value: .name(makeName(targetName)),
+                        attr: property.name,
+                        ctx: .store,
+                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                    )
+                )],
+                value: .attribute(
+                    Attribute(
+                        value: .name(makeName(sourceObj)),
+                        attr: sourceProp,
+                        ctx: .load,
+                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                    )
+                ),
+                typeComment: nil,
+                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+            )
+            
+            return .assign(initialAssign)
+        } else {
+            // Complex expression (f-string, str(), etc.): evaluate the full expression
+            // self.property = eval(valueStr) where all names are in scope
+            // We need to ensure app/self/root are available
+            
+            // For now, create a string constant - this will be improved with proper eval
+            let initialAssign = Assign(
                 targets: [.attribute(
                     Attribute(
                         value: .name(makeName(targetName)),
@@ -557,84 +614,108 @@ public struct KvToPyClassGenerator {
                 typeComment: nil,
                 lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
             )
-            return .assign(assignment)
+            
+            return .assign(initialAssign)
         }
-        
-        let sourceObj = parts[0] // "app", "self", "root"
-        let sourceProp = parts[1...].joined(separator: ".") // "some_prop" or nested like "obj.prop"
-        
-        // Generate: self.property = app.some_prop (initial value)
-        let initialAssign = Assign(
-            targets: [.attribute(
-                Attribute(
-                    value: .name(makeName(targetName)),
-                    attr: property.name,
-                    ctx: .store,
-                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
-                )
-            )],
-            value: .attribute(
-                Attribute(
-                    value: .name(makeName(sourceObj)),
-                    attr: sourceProp,
-                    ctx: .load,
-                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
-                )
-            ),
-            typeComment: nil,
-            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
-        )
-        
-        return .assign(initialAssign)
     }
     
     private func generateBindingCall(_ property: KvProperty, targetName: String = "self") -> Statement? {
+        guard let watchedKeys = property.watchedKeys, !watchedKeys.isEmpty else {
+            return nil
+        }
+        
         let valueStr = property.value.trimmingCharacters(in: .whitespaces)
         
-        // Parse the binding expression
-        let parts = valueStr.split(separator: ".").map(String.init)
-        guard parts.count >= 2 else { return nil }
-        
-        let sourceObj = parts[0]
-        let sourceProp = parts[1]
-        
-        // Generate: app.bind(some_prop=self.setter('property'))
-        // This is more efficient than using lambda with setattr
-        
-        let bindCall = PySwiftAST.Expression.call(
-            Call(
-                fun: .attribute(
-                    Attribute(
-                        value: .name(makeName(sourceObj)),
-                        attr: "bind",
-                        ctx: .load,
-                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
-                    )
-                ),
-                args: [],
-                keywords: [Keyword(
-                    arg: sourceProp,
-                    value: .call(
-                        Call(
-                            fun: .attribute(
-                                Attribute(
-                                    value: .name(makeName(targetName)),
-                                    attr: "setter",
-                                    ctx: .load,
-                                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
-                                )
-                            ),
-                            args: [.constant(makeConstant(.string(property.name)))],
-                            keywords: [],
+        // For simple bindings (single watched key, direct property access)
+        if watchedKeys.count == 1, watchedKeys[0].count == 2 {
+            let sourceObj = watchedKeys[0][0]
+            let sourceProp = watchedKeys[0][1]
+            
+            // Generate: app.bind(prop=self.setter('property'))
+            let bindCall = PySwiftAST.Expression.call(
+                Call(
+                    fun: .attribute(
+                        Attribute(
+                            value: .name(makeName(sourceObj)),
+                            attr: "bind",
+                            ctx: .load,
                             lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
                         )
-                    )
-                )],
-                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                    ),
+                    args: [],
+                    keywords: [Keyword(
+                        arg: sourceProp,
+                        value: .call(
+                            Call(
+                                fun: .attribute(
+                                    Attribute(
+                                        value: .name(makeName(targetName)),
+                                        attr: "setter",
+                                        ctx: .load,
+                                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                                    )
+                                ),
+                                args: [.constant(makeConstant(.string(property.name)))],
+                                keywords: [],
+                                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                            )
+                        )
+                    )],
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                )
             )
-        )
+            
+            return .expr(Expr(value: bindCall, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil))
+        }
         
-        return .expr(Expr(value: bindCall, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil))
+        // For complex expressions (f-strings, multiple watched keys)
+        // We need to bind to ALL watched properties and re-evaluate the expression
+        // app.bind(title=lambda *args: setattr(self, 'text', f"{app.title}-{app.version}"))
+        // app.bind(version=lambda *args: setattr(self, 'text', f"{app.title}-{app.version}"))
+        
+        // TODO: Generate bindings for each watched key that re-evaluates the full expression
+        // For now, just bind to the first one
+        if let firstKey = watchedKeys.first, firstKey.count == 2 {
+            let sourceObj = firstKey[0]
+            let sourceProp = firstKey[1]
+            
+            let bindCall = PySwiftAST.Expression.call(
+                Call(
+                    fun: .attribute(
+                        Attribute(
+                            value: .name(makeName(sourceObj)),
+                            attr: "bind",
+                            ctx: .load,
+                            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                        )
+                    ),
+                    args: [],
+                    keywords: [Keyword(
+                        arg: sourceProp,
+                        value: .call(
+                            Call(
+                                fun: .attribute(
+                                    Attribute(
+                                        value: .name(makeName(targetName)),
+                                        attr: "setter",
+                                        ctx: .load,
+                                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                                    )
+                                ),
+                                args: [.constant(makeConstant(.string(property.name)))],
+                                keywords: [],
+                                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                            )
+                        )
+                    )],
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                )
+            )
+            
+            return .expr(Expr(value: bindCall, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil))
+        }
+        
+        return nil
     }
     
     /// Generate binding for event handlers (on_press, on_release, etc.)
