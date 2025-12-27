@@ -243,11 +243,13 @@ public struct KvToPyClassGenerator {
             lineNum += 1
         }
         
-        // Import App if any bindings use 'app'
+        // Import App if any bindings use 'app' (check both rule properties and child widgets)
         let needsApp = module.rules.contains { rule in
             rule.properties.contains { property in
                 property.value.contains("app.")
-            }
+            } || rule.handlers.contains { handler in
+                handler.value.contains("app.")
+            } || hasAppBindingsInChildren(rule.children)
         }
         
         if needsApp {
@@ -426,6 +428,29 @@ public struct KvToPyClassGenerator {
         return customProps
     }
     
+    /// Recursively check if any child widgets use app bindings
+    private func hasAppBindingsInChildren(_ children: [KvWidget]) -> Bool {
+        for child in children {
+            // Check child's properties
+            for property in child.properties {
+                if property.value.contains("app.") {
+                    return true
+                }
+            }
+            // Check child's handlers
+            for handler in child.handlers {
+                if handler.value.contains("app.") {
+                    return true
+                }
+            }
+            // Recursively check nested children
+            if hasAppBindingsInChildren(child.children) {
+                return true
+            }
+        }
+        return false
+    }
+    
     private func generateInitMethod(_ rule: KvRule, baseClasses: [String], className: String) throws -> Statement {
         var body: [Statement] = []
         
@@ -452,10 +477,12 @@ public struct KvToPyClassGenerator {
         )
         body.append(.expr(Expr(value: superCall, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)))
         
-        // Get app instance if needed for bindings
+        // Get app instance if needed for bindings (check both rule properties and child widgets)
         let hasAppBindings = rule.properties.contains { property in
             property.value.contains("app.")
-        }
+        } || rule.handlers.contains { handler in
+            handler.value.contains("app.")
+        } || hasAppBindingsInChildren(rule.children)
         
         if hasAppBindings {
             // app = App.get_running_app()
