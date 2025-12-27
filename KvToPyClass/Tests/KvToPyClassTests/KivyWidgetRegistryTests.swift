@@ -1,7 +1,39 @@
 import XCTest
 @testable import KvToPyClass
+@testable import KivyWidgetRegistry
 
 final class KivyWidgetRegistryTests: XCTestCase {
+    
+    func testMultipleInheritance() {
+        // Test Button inherits from both ButtonBehavior and Label
+        let buttonProps = KivyWidgetRegistry.getAllProperties(for: .Button)
+        
+        // Check for ButtonBehavior properties
+        XCTAssertTrue(buttonProps.contains { $0.name == "pressed" }, "Button should have 'pressed' from ButtonBehavior")
+        XCTAssertTrue(buttonProps.contains { $0.name == "always_release" }, "Button should have 'always_release' from ButtonBehavior")
+        
+        // Check for Label properties
+        XCTAssertTrue(buttonProps.contains { $0.name == "text" }, "Button should have 'text' from Label")
+        XCTAssertTrue(buttonProps.contains { $0.name == "font_size" }, "Button should have 'font_size' from Label")
+        
+        // Check for Widget properties (inherited through Label)
+        XCTAssertTrue(buttonProps.contains { $0.name == "pos" }, "Button should have 'pos' from Widget")
+        XCTAssertTrue(buttonProps.contains { $0.name == "size" }, "Button should have 'size' from Widget")
+        
+        // Check for Button's own properties
+        XCTAssertTrue(buttonProps.contains { $0.name == "background_color" }, "Button should have its own 'background_color'")
+        
+        // Test ToggleButton (triple inheritance chain)
+        let toggleProps = KivyWidgetRegistry.getAllProperties(for: .ToggleButton)
+        XCTAssertTrue(toggleProps.contains { $0.name == "active" }, "ToggleButton should have 'active' from ToggleButtonBehavior")
+        XCTAssertTrue(toggleProps.contains { $0.name == "group" }, "ToggleButton should have 'group' from ToggleButtonBehavior")
+        XCTAssertTrue(toggleProps.contains { $0.name == "pressed" }, "ToggleButton should have 'pressed' from ButtonBehavior via Button")
+        XCTAssertTrue(toggleProps.contains { $0.name == "text" }, "ToggleButton should have 'text' from Label via Button")
+        
+        print("✅ Multiple inheritance test passed!")
+        print("   Button has \(buttonProps.count) properties (ButtonBehavior + Label + Widget)")
+        print("   ToggleButton has \(toggleProps.count) properties (full chain)")
+    }
     
     func testWidgetExists() {
         XCTAssertTrue(KivyWidgetRegistry.widgetExists("Widget"))
@@ -130,20 +162,28 @@ final class KivyWidgetRegistryTests: XCTestCase {
     }
     
     func testInheritanceChain() {
-        // Test that Button has no parent (ButtonBehavior is not in the enum)
+        // Test that Button inherits from both ButtonBehavior and Label (multiple inheritance)
         let buttonInfo = KivyWidgetRegistry.getWidgetInfo("Button")
-        XCTAssertNil(buttonInfo?.parentClass)
+        XCTAssertEqual(buttonInfo?.baseClasses.count, 2)
+        XCTAssertTrue(buttonInfo?.baseClasses.contains(.ButtonBehavior) ?? false)
+        XCTAssertTrue(buttonInfo?.baseClasses.contains(.Label) ?? false)
         
         // Test that Label inherits from Widget
         let labelInfo = KivyWidgetRegistry.getWidgetInfo("Label")
-        XCTAssertEqual(labelInfo?.parentClass, .Widget)
+        XCTAssertEqual(labelInfo?.baseClasses, [.Widget])
         
         // Test that BoxLayout inherits from Layout
         let boxLayoutInfo = KivyWidgetRegistry.getWidgetInfo("BoxLayout")
-        XCTAssertEqual(boxLayoutInfo?.parentClass, .Layout)
+        XCTAssertEqual(boxLayoutInfo?.baseClasses, [.Layout])
         
         // Test that Layout inherits from Widget
         let layoutInfo = KivyWidgetRegistry.getWidgetInfo("Layout")
-        XCTAssertEqual(layoutInfo?.parentClass, .Widget)
+        XCTAssertEqual(layoutInfo?.baseClasses, [.Widget])
+        
+        // Test that ToggleButton inherits from both ToggleButtonBehavior and Button
+        let toggleButtonInfo = KivyWidgetRegistry.getWidgetInfo("ToggleButton")
+        XCTAssertEqual(toggleButtonInfo?.baseClasses.count, 2)
+        XCTAssertTrue(toggleButtonInfo?.baseClasses.contains(.ToggleButtonBehavior) ?? false)
+        XCTAssertTrue(toggleButtonInfo?.baseClasses.contains(.Button) ?? false)
     }
 }

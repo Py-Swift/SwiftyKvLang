@@ -122,9 +122,9 @@ final class KvToPyClassTests: XCTestCase {
         let generator = KvToPyClassGenerator(module: module)
         let pythonCode = try generator.generate()
         
-        // Verify property binding generates both assignment and bind() call
+        // Verify property binding generates assignment and bind() call
         XCTAssertTrue(pythonCode.contains("class MyButton"))
-        XCTAssertTrue(pythonCode.contains("text = ObjectProperty(None)"))  // Class-level property
+        XCTAssertTrue(pythonCode.contains("app = App.get_running_app()"))  // App instance
         XCTAssertTrue(pythonCode.contains("self.text = app.title"))  // Initial assignment
         XCTAssertTrue(pythonCode.contains("app.bind(title=self.setter(\"text\"))"))  // Reactive binding
         XCTAssertTrue(pythonCode.contains("from kivy.app import App"))  // Import App

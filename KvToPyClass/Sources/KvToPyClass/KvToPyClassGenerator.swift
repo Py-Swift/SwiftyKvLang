@@ -1,4 +1,5 @@
 import Foundation
+import KivyWidgetRegistry
 import KvParser
 import PySwiftAST
 import PySwiftCodeGen

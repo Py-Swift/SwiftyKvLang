@@ -24,8 +24,14 @@ let package = Package(
     ],
     targets: [
         .target(
+            name: "KivyWidgetRegistry",
+            dependencies: [],
+            path: "Sources/KivyWidgetRegistry"
+        ),
+        .target(
             name: "KvToPyClass",
             dependencies: [
+                "KivyWidgetRegistry",
                 .product(name: "KvParser", package: "SwiftyKvLang"),
                 .product(name: "PySwiftAST", package: "PySwiftAST"),
                 .product(name: "PySwiftCodeGen", package: "PySwiftAST"),
@@ -40,7 +46,7 @@ let package = Package(
         ),
         .testTarget(
             name: "KvToPyClassTests",
-            dependencies: ["KvToPyClass"],
+            dependencies: ["KvToPyClass", "KivyWidgetRegistry"],
             path: "Tests/KvToPyClassTests"
         )
     ]
