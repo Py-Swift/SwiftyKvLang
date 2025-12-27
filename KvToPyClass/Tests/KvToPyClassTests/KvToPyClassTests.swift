@@ -106,4 +106,30 @@ final class KvToPyClassTests: XCTestCase {
         print("Generated Python code with multiple classes:")
         print(pythonCode)
     }
+    
+    func testPropertyBinding() throws {
+        let kvSource = """
+        <MyButton@Button>:
+            text: app.title
+            background_color: 0.2, 0.6, 1, 1
+        """
+        
+        let tokenizer = KvTokenizer(source: kvSource)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        let generator = KvToPyClassGenerator(module: module)
+        let pythonCode = try generator.generate()
+        
+        // Verify property binding generates both assignment and bind() call
+        XCTAssertTrue(pythonCode.contains("class MyButton"))
+        XCTAssertTrue(pythonCode.contains("text = ObjectProperty(None)"))  // Class-level property
+        XCTAssertTrue(pythonCode.contains("self.text = app.title"))  // Initial assignment
+        XCTAssertTrue(pythonCode.contains("app.bind(title=self.setter(\"text\"))"))  // Reactive binding
+        XCTAssertTrue(pythonCode.contains("from kivy.app import App"))  // Import App
+        
+        print("Generated Python code with property binding:")
+        print(pythonCode)
+    }
 }
