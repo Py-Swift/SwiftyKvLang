@@ -1424,7 +1424,16 @@ public struct KvToPyClassGenerator {
         let widgetId = widget.id
         
         // Generate a variable name for this widget (use id if available, otherwise generate one)
-        let varName = widgetVarName ?? (widgetId ?? "widget_\(UUID().uuidString.prefix(8))")
+        // Use widget type as prefix (e.g., "label_ABC123" for Label, "box_ABC123" for BoxLayout)
+        let defaultVarName: String
+        if let widgetId = widgetId {
+            defaultVarName = widgetId
+        } else {
+            let widgetTypePrefix = widget.name.lowercased().replacingOccurrences(of: "layout", with: "")
+            let shortPrefix = widgetTypePrefix.prefix(10) // Limit prefix length
+            defaultVarName = "\(shortPrefix)_\(UUID().uuidString.prefix(8).uppercased())"
+        }
+        let varName = widgetVarName ?? defaultVarName
         
         // Separate properties that need binding from static ones
         var staticProperties: [KvProperty] = []
