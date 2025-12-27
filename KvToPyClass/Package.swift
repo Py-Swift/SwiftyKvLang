@@ -28,7 +28,8 @@ let package = Package(
             dependencies: [
                 .product(name: "KvParser", package: "SwiftyKvLang"),
                 .product(name: "PySwiftAST", package: "PySwiftAST"),
-                .product(name: "PySwiftCodeGen", package: "PySwiftAST")
+                .product(name: "PySwiftCodeGen", package: "PySwiftAST"),
+                .product(name: "PyFormatters", package: "PySwiftAST")
             ],
             path: "Sources/KvToPyClass"
         ),

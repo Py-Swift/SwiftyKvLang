@@ -2,6 +2,7 @@ import Foundation
 import KvParser
 import PySwiftAST
 import PySwiftCodeGen
+import PyFormatters
 
 /// Generates Python class code from KV language rules
 ///
@@ -11,9 +12,11 @@ import PySwiftCodeGen
 public struct KvToPyClassGenerator {
     
     private let module: KvModule
+    private let pythonClasses: [PythonClassInfo]
     
-    public init(module: KvModule) {
+    public init(module: KvModule, pythonClasses: [PythonClassInfo] = []) {
         self.module = module
+        self.pythonClasses = pythonClasses
     }
     
     /// Generate Python code for all dynamic classes and rules
@@ -33,36 +36,14 @@ public struct KvToPyClassGenerator {
         
         // Convert to Python source code
         let pyModule = Module.module(statements)
-        let code = try formatModule(pyModule)
         
-        // Add blank lines between imports and classes, and between classes
-        return addBlankLines(to: code)
-    }
-    
-    private func addBlankLines(to code: String) -> String {
-        var lines = code.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        var result: [String] = []
-        var lastWasImport = false
+        // Apply Black formatter for proper blank line formatting
+        let formatter = BlackFormatter()
+        let formattedModule = formatter.formatDeep(pyModule)
         
-        for (index, line) in lines.enumerated() {
-            let isImport = line.hasPrefix("from ") || line.hasPrefix("import ")
-            let isClass = line.hasPrefix("class ")
-            
-            // Add blank line after last import before first class
-            if lastWasImport && isClass {
-                result.append("")
-            }
-            
-            // Add blank line between classes
-            if isClass && index > 0 && !lines[index - 1].isEmpty && !lines[index - 1].hasPrefix("from ") && !lines[index - 1].hasPrefix("import ") {
-                result.append("")
-            }
-            
-            result.append(line)
-            lastWasImport = isImport
-        }
+        let code = try formatModule(formattedModule)
         
-        return result.joined(separator: "\n")
+        return code
     }
     
     // MARK: - Helpers
@@ -82,30 +63,51 @@ public struct KvToPyClassGenerator {
     
     // MARK: - Import Generation
     
-    /// Collect all widget types used in the module
+    /// Collect all widget types used in the module (excluding custom widgets defined in this module)
     private func collectWidgetTypes() -> Swift.Set<String> {
         var types = Swift.Set<String>()
         
+        // First, collect all custom widget names defined in this module
+        var customWidgets = Swift.Set<String>()
         for rule in module.rules {
             switch rule.selector {
-            case .dynamicClass(_, let bases):
-                types.formUnion(bases)
+            case .dynamicClass(let name, _):
+                customWidgets.insert(name)
             case .name(let name):
-                types.insert(name)
+                customWidgets.insert(name)
             default:
                 break
             }
-            // Collect from children
-            collectTypesFromChildren(rule.children, into: &types)
+        }
+        
+        // Now collect widget types, excluding custom ones
+        for rule in module.rules {
+            switch rule.selector {
+            case .dynamicClass(_, let bases):
+                // Only add base classes that aren't custom widgets
+                for base in bases where !customWidgets.contains(base) {
+                    types.insert(base)
+                }
+            case .name(_):
+                // Skip this name itself since it's a custom widget
+                break
+            default:
+                break
+            }
+            // Collect from children, excluding custom widgets
+            collectTypesFromChildren(rule.children, into: &types, excluding: customWidgets)
         }
         
         return types
     }
     
-    private func collectTypesFromChildren(_ children: [KvWidget], into types: inout Swift.Set<String>) {
+    private func collectTypesFromChildren(_ children: [KvWidget], into types: inout Swift.Set<String>, excluding customWidgets: Swift.Set<String>) {
         for child in children {
-            types.insert(child.name)
-            collectTypesFromChildren(child.children, into: &types)
+            // Only add if it's not a custom widget
+            if !customWidgets.contains(child.name) {
+                types.insert(child.name)
+            }
+            collectTypesFromChildren(child.children, into: &types, excluding: customWidgets)
         }
     }
     
@@ -208,11 +210,21 @@ public struct KvToPyClassGenerator {
         switch selector {
         case .dynamicClass(let name, let bases):
             className = name
-            baseClasses = bases.isEmpty ? ["Widget"] : bases
-        case .name:
-            // For simple name selectors, we don't generate a class
-            // (this is a rule that applies to existing widget types)
-            return []
+            // Check if we have Python class info for this class
+            if let pythonClass = pythonClasses.first(where: { $0.name == name }) {
+                // Use base classes from Python code if they exist
+                baseClasses = pythonClass.baseClasses.isEmpty ? (bases.isEmpty ? ["Widget"] : bases) : pythonClass.baseClasses
+            } else {
+                baseClasses = bases.isEmpty ? ["Widget"] : bases
+            }
+        case .name(let name):
+            // For simple name selectors, check Python code first
+            className = name
+            if let pythonClass = pythonClasses.first(where: { $0.name == name }) {
+                baseClasses = pythonClass.baseClasses.isEmpty ? ["Widget"] : pythonClass.baseClasses
+            } else {
+                baseClasses = ["Widget"]
+            }
         case .className, .multiple:
             // These selector types don't generate classes
             return []
@@ -220,6 +232,9 @@ public struct KvToPyClassGenerator {
         
         // Generate class body with properties and children
         var body: [Statement] = []
+        
+        // Add initial blank line at the start of class body
+        body.append(.blank(1))
         
         // Declare custom properties that need binding
         let customProps = getCustomProperties(for: rule, baseClasses: baseClasses)
@@ -243,10 +258,18 @@ public struct KvToPyClassGenerator {
         
         // Add __init__ method if there are properties or children
         if !rule.properties.isEmpty || !rule.children.isEmpty {
-            body.append(try generateInitMethod(rule))
+            body.append(try generateInitMethod(rule, baseClasses: baseClasses, className: className))
         } else if body.isEmpty {
             // Empty class needs pass statement
             body.append(.pass(Pass(lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)))
+        }
+        
+        // Add any additional methods from Python code (as AST nodes)
+        if let pythonClass = pythonClasses.first(where: { $0.name == className }) {
+            for method in pythonClass.methods {
+                // Directly append the method AST nodes from the parsed Python code
+                body.append(method)
+            }
         }
         
         let bases: [PySwiftAST.Expression] = baseClasses.map { name in
@@ -290,7 +313,7 @@ public struct KvToPyClassGenerator {
         return customProps
     }
     
-    private func generateInitMethod(_ rule: KvRule) throws -> Statement {
+    private func generateInitMethod(_ rule: KvRule, baseClasses: [String], className: String) throws -> Statement {
         var body: [Statement] = []
         
         // Call super().__init__(**kwargs)
@@ -353,6 +376,7 @@ public struct KvToPyClassGenerator {
                 body.append(try generatePropertyBinding(property))
             } else {
                 // Simple assignment
+                let widgetName = baseClasses.first ?? "Widget"
                 let assignment = Assign(
                     targets: [.attribute(
                         Attribute(
@@ -362,7 +386,7 @@ public struct KvToPyClassGenerator {
                             lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
                         )
                     )],
-                    value: try propertyValueToExpression(property),
+                    value: try propertyValueToExpression(property, widgetName: widgetName),
                     typeComment: nil,
                     lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
                 )
@@ -377,24 +401,9 @@ public struct KvToPyClassGenerator {
             }
         }
         
-        // Add children (self.add_widget(...))
+        // Add children with proper nesting and id handling
         for child in rule.children {
-            let addWidgetCall = PySwiftAST.Expression.call(
-                Call(
-                    fun: .attribute(
-                        Attribute(
-                            value: .name(makeName("self")),
-                            attr: "add_widget",
-                            ctx: .load,
-                            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
-                        )
-                    ),
-                    args: [try createChildWidget(child)],
-                    keywords: [],
-                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
-                )
-            )
-            body.append(.expr(Expr(value: addWidgetCall, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)))
+            body.append(contentsOf: try createAndAddChildWidget(child, parentName: "self"))
         }
         
         let initFunc = FunctionDef(
@@ -419,7 +428,7 @@ public struct KvToPyClassGenerator {
         return .functionDef(initFunc)
     }
     
-    private func propertyValueToExpression(_ property: KvProperty) throws -> PySwiftAST.Expression {
+    private func propertyValueToExpression(_ property: KvProperty, widgetName: String = "Widget") throws -> PySwiftAST.Expression {
         // Use the raw value string which has the actual source representation
         var valueStr = property.value.trimmingCharacters(in: .whitespaces)
         
@@ -434,6 +443,33 @@ public struct KvToPyClassGenerator {
         if (valueStr.hasPrefix("\"") && valueStr.hasSuffix("\"")) || 
            (valueStr.hasPrefix("'") && valueStr.hasSuffix("'")) {
             valueStr = String(valueStr.dropFirst().dropLast())
+        }
+        
+        // Check what type this property should be based on the widget registry
+        let propertyType = KivyWidgetRegistry.getPropertyType(property.name, on: widgetName)
+        
+        // Handle list/tuple properties (ReferenceListProperty, ListProperty, VariableListProperty)
+        if propertyType == .referenceListProperty || 
+           propertyType == .listProperty || 
+           propertyType == .variableListProperty {
+            // Parse as tuple/list: "None , None" -> (None, None) or "0.5, 0.5" -> (0.5, 0.5)
+            if valueStr.contains(",") {
+                let parts = valueStr.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+                let exprs = parts.map { part -> PySwiftAST.Expression in
+                    if part == "None" {
+                        return .constant(makeConstant(.none))
+                    } else if let num = Double(part) {
+                        return .constant(makeConstant(.float(num)))
+                    } else if part == "True" {
+                        return .constant(makeConstant(.bool(true)))
+                    } else if part == "False" {
+                        return .constant(makeConstant(.bool(false)))
+                    } else {
+                        return .constant(makeConstant(.string(part)))
+                    }
+                }
+                return .tuple(Tuple(elts: exprs, ctx: .load, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil))
+            }
         }
         
         // Try to parse as number
@@ -455,8 +491,14 @@ public struct KvToPyClassGenerator {
             // Parse as tuple: "0.5, 0.5" -> (0.5, 0.5)
             let parts = valueStr.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
             let exprs = parts.compactMap { part -> PySwiftAST.Expression? in
-                if let num = Double(part) {
+                if part == "None" {
+                    return .constant(makeConstant(.none))
+                } else if let num = Double(part) {
                     return .constant(makeConstant(.float(num)))
+                } else if part == "True" {
+                    return .constant(makeConstant(.bool(true)))
+                } else if part == "False" {
+                    return .constant(makeConstant(.bool(false)))
                 }
                 return nil
             }
@@ -575,6 +617,93 @@ public struct KvToPyClassGenerator {
         return .expr(Expr(value: bindCall, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil))
     }
     
+    /// Create and add a child widget with proper handling of nested children and ids
+    /// Returns statements that create the widget, store it if it has an id, add its children, and add it to parent
+    private func createAndAddChildWidget(_ widget: KvWidget, parentName: String, widgetVarName: String? = nil) throws -> [Statement] {
+        var statements: [Statement] = []
+        
+        // Get the widget id directly from the widget struct (not from properties)
+        let widgetId = widget.id
+        
+        // Generate a variable name for this widget (use id if available, otherwise generate one)
+        let varName = widgetVarName ?? (widgetId ?? "widget_\(UUID().uuidString.prefix(8))")
+        
+        // Create widget instance
+        var keywords: [Keyword] = []
+        for property in widget.properties {
+            let keyword = Keyword(
+                arg: property.name,
+                value: try propertyValueToExpression(property, widgetName: widget.name)
+            )
+            keywords.append(keyword)
+        }
+        
+        let widgetCreation = Assign(
+            targets: [.name(makeName(varName))],
+            value: .call(
+                Call(
+                    fun: .name(makeName(widget.name)),
+                    args: [],
+                    keywords: keywords,
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                )
+            ),
+            typeComment: nil,
+            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+        )
+        statements.append(.assign(widgetCreation))
+        
+        // If widget has an id, store it in self.ids
+        if let widgetId = widgetId {
+            let storeInIds = Assign(
+                targets: [.attribute(
+                    Attribute(
+                        value: .attribute(
+                            Attribute(
+                                value: .name(makeName("self")),
+                                attr: "ids",
+                                ctx: .load,
+                                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                            )
+                        ),
+                        attr: widgetId,
+                        ctx: .store,
+                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                    )
+                )],
+                value: .name(makeName(varName)),
+                typeComment: nil,
+                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+            )
+            statements.append(.assign(storeInIds))
+        }
+        
+        // Add children to this widget recursively
+        for child in widget.children {
+            statements.append(contentsOf: try createAndAddChildWidget(child, parentName: varName))
+        }
+        
+        // Add this widget to parent
+        let addToParent = PySwiftAST.Expression.call(
+            Call(
+                fun: .attribute(
+                    Attribute(
+                        value: .name(makeName(parentName)),
+                        attr: "add_widget",
+                        ctx: .load,
+                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                    )
+                ),
+                args: [.name(makeName(varName))],
+                keywords: [],
+                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+            )
+        )
+        statements.append(.expr(Expr(value: addToParent, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)))
+        
+        return statements
+    }
+    
     private func createChildWidget(_ widget: KvWidget) throws -> PySwiftAST.Expression {
         // Create widget instance: WidgetClass(**properties)
         var keywords: [Keyword] = []
@@ -582,7 +711,7 @@ public struct KvToPyClassGenerator {
         for property in widget.properties {
             let keyword = Keyword(
                 arg: property.name,
-                value: try propertyValueToExpression(property)
+                value: try propertyValueToExpression(property, widgetName: widget.name)
             )
             keywords.append(keyword)
         }

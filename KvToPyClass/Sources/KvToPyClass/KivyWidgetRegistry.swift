@@ -7,7 +7,7 @@
 import Foundation
 
 /// Kivy property types
-public enum KivyPropertyType: String, Equatable, Hashable {
+public enum KivyPropertyType: String, Equatable, Hashable, Sendable {
     case numericProperty = "NumericProperty"
     case stringProperty = "StringProperty"
     case listProperty = "ListProperty"
@@ -23,7 +23,7 @@ public enum KivyPropertyType: String, Equatable, Hashable {
 }
 
 /// Represents a single Kivy property with its name and type
-public struct KivyPropertyInfo: Equatable, Hashable {
+public struct KivyPropertyInfo: Equatable, Hashable, Sendable {
     public let name: String
     public let type: KivyPropertyType
     
@@ -34,26 +34,150 @@ public struct KivyPropertyInfo: Equatable, Hashable {
 }
 
 /// Represents a Kivy widget with its parent class and properties
-public struct KivyWidgetInfo {
+public struct KivyWidgetInfo: Sendable {
     public let widgetName: String
-    public let parentClass: String?
+    public let parentClass: KivyWidget?
     public let directProperties: Set<KivyPropertyInfo>
     
-    public init(widgetName: String, parentClass: String?, directProperties: Set<KivyPropertyInfo>) {
+    public init(widgetName: String, parentClass: KivyWidget?, directProperties: Set<KivyPropertyInfo>) {
         self.widgetName = widgetName
         self.parentClass = parentClass
         self.directProperties = directProperties
     }
 }
 
+/// Enum representing all available Kivy widget types
+public enum KivyWidget: String, CaseIterable, Equatable, Hashable, Sendable {
+    case Accordion
+    case AccordionItem
+    case ActionBar
+    case ActionButton
+    case ActionGroup
+    case ActionItem
+    case ActionOverflow
+    case ActionPrevious
+    case ActionSeparator
+    case ActionToggleButton
+    case ActionView
+    case AdvancedEffectBase
+    case AnchorLayout
+    case BoxLayout
+    case Bubble
+    case BubbleContent
+    case Button
+    case Camera
+    case CardTransition
+    case Carousel
+    case ChannelMixEffect
+    case CheckBox
+    case CodeInput
+    case ColorPicker
+    case ColorWheel
+    case ContentPanel
+    case DropDown
+    case EffectBase
+    case EffectWidget
+    case FadeTransition
+    case FallOutTransition
+    case FileChooser
+    case FileChooserController
+    case FileChooserLayout
+    case FileChooserProgressBase
+    case FloatLayout
+    case GestureContainer
+    case GestureSurface
+    case GridLayout
+    case HorizontalBlurEffect
+    case Image
+    case InterfaceWithSidebar
+    case InterfaceWithSpinner
+    case InterfaceWithTabbedPanel
+    case Label
+    case Layout
+    case MenuSidebar
+    case MenuSpinner
+    case ModalView
+    case MyOwnActionButton
+    case MyWidget
+    case NoTransition
+    case OtherWidget
+    case PageLayout
+    case PixelateEffect
+    case Popup
+    case ProgressBar
+    case RecycleLayout
+    case RelativeLayout
+    case RiseInTransition
+    case RstBlockQuote
+    case RstDefinition
+    case RstDefinitionList
+    case RstDefinitionSpace
+    case RstDocument
+    case RstFieldName
+    case RstFootName
+    case RstListBullet
+    case RstListItem
+    case RstLiteralBlock
+    case RstNote
+    case RstParagraph
+    case RstTerm
+    case RstTitle
+    case RstWarning
+    case Scatter
+    case ScatterLayout
+    case Screen
+    case ScreenManager
+    case ScrollView
+    case Selector
+    case SettingBoolean
+    case SettingColor
+    case SettingItem
+    case SettingOptions
+    case SettingPath
+    case SettingSidebarLabel
+    case SettingString
+    case SettingTitle
+    case Settings
+    case SettingsPanel
+    case ShaderTransition
+    case SlideTransition
+    case Slider
+    case Spinner
+    case Splitter
+    case StackLayout
+    case StripLayout
+    case `Switch`
+    case TabbedPanel
+    case TabbedPanelHeader
+    case TabbedPanelStrip
+    case TextInput
+    case TextInputApp
+    case TextInputCutCopyPaste
+    case TransitionBase
+    case TreeView
+    case TreeViewNode
+    case VKeyboard
+    case VerticalBlurEffect
+    case Video
+    case VideoPlayer
+    case VideoPlayerAnnotation
+    case VideoPlayerPlayPause
+    case VideoPlayerPreview
+    case VideoPlayerProgressBar
+    case VideoPlayerStop
+    case VideoPlayerVolume
+    case Widget
+    case WipeTransition
+}
+
 /// Registry of all Kivy widgets with methods to query widget information
 public class KivyWidgetRegistry {
     
     /// Dictionary mapping widget names to their information
-    private static let widgetRegistry: [String: KivyWidgetInfo] = [
-        "Accordion": KivyWidgetInfo(
+    private static let widgetRegistry: [KivyWidget: KivyWidgetInfo] = [
+        .Accordion: KivyWidgetInfo(
             widgetName: "Accordion",
-            parentClass: "Widget",
+            parentClass: .Widget,
             directProperties: [
                 KivyPropertyInfo(name: "anim_duration", type: .numericProperty),
                 KivyPropertyInfo(name: "anim_func", type: .objectProperty),
@@ -61,9 +185,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "orientation", type: .optionProperty),
             ]
         ),
-        "AccordionItem": KivyWidgetInfo(
+        .AccordionItem: KivyWidgetInfo(
             widgetName: "AccordionItem",
-            parentClass: "FloatLayout",
+            parentClass: .FloatLayout,
             directProperties: [
                 KivyPropertyInfo(name: "accordion", type: .objectProperty),
                 KivyPropertyInfo(name: "background_disabled_normal", type: .stringProperty),
@@ -82,9 +206,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "title_template", type: .stringProperty),
             ]
         ),
-        "ActionBar": KivyWidgetInfo(
+        .ActionBar: KivyWidgetInfo(
             widgetName: "ActionBar",
-            parentClass: "BoxLayout",
+            parentClass: .BoxLayout,
             directProperties: [
                 KivyPropertyInfo(name: "action_view", type: .objectProperty),
                 KivyPropertyInfo(name: "background_color", type: .colorProperty),
@@ -92,16 +216,16 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "border", type: .listProperty),
             ]
         ),
-        "ActionButton": KivyWidgetInfo(
+        .ActionButton: KivyWidgetInfo(
             widgetName: "ActionButton",
-            parentClass: "Button",
+            parentClass: .Button,
             directProperties: [
                 KivyPropertyInfo(name: "icon", type: .stringProperty),
             ]
         ),
-        "ActionGroup": KivyWidgetInfo(
+        .ActionGroup: KivyWidgetInfo(
             widgetName: "ActionGroup",
-            parentClass: "ActionItem",
+            parentClass: .ActionItem,
             directProperties: [
                 KivyPropertyInfo(name: "dropdown_width", type: .numericProperty),
                 KivyPropertyInfo(name: "is_open", type: .booleanProperty),
@@ -111,9 +235,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "use_separator", type: .booleanProperty),
             ]
         ),
-        "ActionItem": KivyWidgetInfo(
+        .ActionItem: KivyWidgetInfo(
             widgetName: "ActionItem",
-            parentClass: "object",
+            parentClass: nil,
             directProperties: [
                 KivyPropertyInfo(name: "background_down", type: .stringProperty),
                 KivyPropertyInfo(name: "background_normal", type: .stringProperty),
@@ -124,16 +248,16 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "pack_width", type: .aliasProperty),
             ]
         ),
-        "ActionOverflow": KivyWidgetInfo(
+        .ActionOverflow: KivyWidgetInfo(
             widgetName: "ActionOverflow",
-            parentClass: "ActionGroup",
+            parentClass: .ActionGroup,
             directProperties: [
                 KivyPropertyInfo(name: "overflow_image", type: .stringProperty),
             ]
         ),
-        "ActionPrevious": KivyWidgetInfo(
+        .ActionPrevious: KivyWidgetInfo(
             widgetName: "ActionPrevious",
-            parentClass: "BoxLayout",
+            parentClass: .BoxLayout,
             directProperties: [
                 KivyPropertyInfo(name: "app_icon", type: .stringProperty),
                 KivyPropertyInfo(name: "app_icon_height", type: .numericProperty),
@@ -147,23 +271,23 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "with_previous", type: .booleanProperty),
             ]
         ),
-        "ActionSeparator": KivyWidgetInfo(
+        .ActionSeparator: KivyWidgetInfo(
             widgetName: "ActionSeparator",
-            parentClass: "ActionItem",
+            parentClass: .ActionItem,
             directProperties: [
                 KivyPropertyInfo(name: "background_image", type: .stringProperty),
             ]
         ),
-        "ActionToggleButton": KivyWidgetInfo(
+        .ActionToggleButton: KivyWidgetInfo(
             widgetName: "ActionToggleButton",
-            parentClass: "ActionItem",
+            parentClass: .ActionItem,
             directProperties: [
                 KivyPropertyInfo(name: "icon", type: .stringProperty),
             ]
         ),
-        "ActionView": KivyWidgetInfo(
+        .ActionView: KivyWidgetInfo(
             widgetName: "ActionView",
-            parentClass: "BoxLayout",
+            parentClass: .BoxLayout,
             directProperties: [
                 KivyPropertyInfo(name: "action_previous", type: .objectProperty),
                 KivyPropertyInfo(name: "background_color", type: .colorProperty),
@@ -172,25 +296,25 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "use_separator", type: .booleanProperty),
             ]
         ),
-        "AdvancedEffectBase": KivyWidgetInfo(
+        .AdvancedEffectBase: KivyWidgetInfo(
             widgetName: "AdvancedEffectBase",
-            parentClass: "EffectBase",
+            parentClass: .EffectBase,
             directProperties: [
                 KivyPropertyInfo(name: "uniforms", type: .dictProperty),
             ]
         ),
-        "AnchorLayout": KivyWidgetInfo(
+        .AnchorLayout: KivyWidgetInfo(
             widgetName: "AnchorLayout",
-            parentClass: "Layout",
+            parentClass: .Layout,
             directProperties: [
                 KivyPropertyInfo(name: "anchor_x", type: .optionProperty),
                 KivyPropertyInfo(name: "anchor_y", type: .optionProperty),
                 KivyPropertyInfo(name: "padding", type: .variableListProperty),
             ]
         ),
-        "BoxLayout": KivyWidgetInfo(
+        .BoxLayout: KivyWidgetInfo(
             widgetName: "BoxLayout",
-            parentClass: "Layout",
+            parentClass: .Layout,
             directProperties: [
                 KivyPropertyInfo(name: "minimum_height", type: .numericProperty),
                 KivyPropertyInfo(name: "minimum_size", type: .referenceListProperty),
@@ -200,9 +324,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "spacing", type: .numericProperty),
             ]
         ),
-        "Bubble": KivyWidgetInfo(
+        .Bubble: KivyWidgetInfo(
             widgetName: "Bubble",
-            parentClass: "BoxLayout",
+            parentClass: .BoxLayout,
             directProperties: [
                 KivyPropertyInfo(name: "arrow_color", type: .colorProperty),
                 KivyPropertyInfo(name: "arrow_image", type: .stringProperty),
@@ -219,9 +343,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "show_arrow", type: .booleanProperty),
             ]
         ),
-        "BubbleContent": KivyWidgetInfo(
+        .BubbleContent: KivyWidgetInfo(
             widgetName: "BubbleContent",
-            parentClass: "BoxLayout",
+            parentClass: .BoxLayout,
             directProperties: [
                 KivyPropertyInfo(name: "background_color", type: .colorProperty),
                 KivyPropertyInfo(name: "background_image", type: .stringProperty),
@@ -229,9 +353,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "border_auto_scale", type: .optionProperty),
             ]
         ),
-        "Button": KivyWidgetInfo(
+        .Button: KivyWidgetInfo(
             widgetName: "Button",
-            parentClass: "ButtonBehavior",
+            parentClass: nil,
             directProperties: [
                 KivyPropertyInfo(name: "background_color", type: .colorProperty),
                 KivyPropertyInfo(name: "background_disabled_down", type: .stringProperty),
@@ -241,25 +365,25 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "border", type: .listProperty),
             ]
         ),
-        "Camera": KivyWidgetInfo(
+        .Camera: KivyWidgetInfo(
             widgetName: "Camera",
-            parentClass: "Image",
+            parentClass: .Image,
             directProperties: [
                 KivyPropertyInfo(name: "index", type: .numericProperty),
                 KivyPropertyInfo(name: "play", type: .booleanProperty),
                 KivyPropertyInfo(name: "resolution", type: .listProperty),
             ]
         ),
-        "CardTransition": KivyWidgetInfo(
+        .CardTransition: KivyWidgetInfo(
             widgetName: "CardTransition",
-            parentClass: "SlideTransition",
+            parentClass: .SlideTransition,
             directProperties: [
                 KivyPropertyInfo(name: "mode", type: .optionProperty),
             ]
         ),
-        "Carousel": KivyWidgetInfo(
+        .Carousel: KivyWidgetInfo(
             widgetName: "Carousel",
-            parentClass: "StencilView",
+            parentClass: nil,
             directProperties: [
                 KivyPropertyInfo(name: "_current", type: .objectProperty),
                 KivyPropertyInfo(name: "_index", type: .numericProperty),
@@ -284,16 +408,16 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "slides_container", type: .aliasProperty),
             ]
         ),
-        "ChannelMixEffect": KivyWidgetInfo(
+        .ChannelMixEffect: KivyWidgetInfo(
             widgetName: "ChannelMixEffect",
-            parentClass: "EffectBase",
+            parentClass: .EffectBase,
             directProperties: [
                 KivyPropertyInfo(name: "order", type: .listProperty),
             ]
         ),
-        "CheckBox": KivyWidgetInfo(
+        .CheckBox: KivyWidgetInfo(
             widgetName: "CheckBox",
-            parentClass: "ToggleButtonBehavior",
+            parentClass: nil,
             directProperties: [
                 KivyPropertyInfo(name: "background_checkbox_disabled_down", type: .stringProperty),
                 KivyPropertyInfo(name: "background_checkbox_disabled_normal", type: .stringProperty),
@@ -306,18 +430,18 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "color", type: .colorProperty),
             ]
         ),
-        "CodeInput": KivyWidgetInfo(
+        .CodeInput: KivyWidgetInfo(
             widgetName: "CodeInput",
-            parentClass: "CodeNavigationBehavior",
+            parentClass: nil,
             directProperties: [
                 KivyPropertyInfo(name: "lexer", type: .objectProperty),
                 KivyPropertyInfo(name: "style", type: .objectProperty),
                 KivyPropertyInfo(name: "style_name", type: .optionProperty),
             ]
         ),
-        "ColorPicker": KivyWidgetInfo(
+        .ColorPicker: KivyWidgetInfo(
             widgetName: "ColorPicker",
-            parentClass: "RelativeLayout",
+            parentClass: .RelativeLayout,
             directProperties: [
                 KivyPropertyInfo(name: "color", type: .listProperty),
                 KivyPropertyInfo(name: "font_name", type: .stringProperty),
@@ -327,9 +451,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "wheel", type: .objectProperty),
             ]
         ),
-        "ColorWheel": KivyWidgetInfo(
+        .ColorWheel: KivyWidgetInfo(
             widgetName: "ColorWheel",
-            parentClass: "Widget",
+            parentClass: .Widget,
             directProperties: [
                 KivyPropertyInfo(name: "_origin", type: .listProperty),
                 KivyPropertyInfo(name: "_piece_divisions", type: .numericProperty),
@@ -342,9 +466,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "r", type: .boundedNumericProperty),
             ]
         ),
-        "ContentPanel": KivyWidgetInfo(
+        .ContentPanel: KivyWidgetInfo(
             widgetName: "ContentPanel",
-            parentClass: "ScrollView",
+            parentClass: .ScrollView,
             directProperties: [
                 KivyPropertyInfo(name: "container", type: .objectProperty),
                 KivyPropertyInfo(name: "current_panel", type: .objectProperty),
@@ -352,9 +476,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "panels", type: .dictProperty),
             ]
         ),
-        "DropDown": KivyWidgetInfo(
+        .DropDown: KivyWidgetInfo(
             widgetName: "DropDown",
-            parentClass: "ScrollView",
+            parentClass: .ScrollView,
             directProperties: [
                 KivyPropertyInfo(name: "attach_to", type: .objectProperty),
                 KivyPropertyInfo(name: "auto_dismiss", type: .booleanProperty),
@@ -365,18 +489,18 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "min_state_time", type: .numericProperty),
             ]
         ),
-        "EffectBase": KivyWidgetInfo(
+        .EffectBase: KivyWidgetInfo(
             widgetName: "EffectBase",
-            parentClass: "EventDispatcher",
+            parentClass: nil,
             directProperties: [
                 KivyPropertyInfo(name: "fbo", type: .objectProperty),
                 KivyPropertyInfo(name: "glsl", type: .stringProperty),
                 KivyPropertyInfo(name: "source", type: .stringProperty),
             ]
         ),
-        "EffectWidget": KivyWidgetInfo(
+        .EffectWidget: KivyWidgetInfo(
             widgetName: "EffectWidget",
-            parentClass: "RelativeLayout",
+            parentClass: .RelativeLayout,
             directProperties: [
                 KivyPropertyInfo(name: "_bound_effects", type: .listProperty),
                 KivyPropertyInfo(name: "background_color", type: .listProperty),
@@ -385,24 +509,24 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "texture", type: .objectProperty),
             ]
         ),
-        "FadeTransition": KivyWidgetInfo(
+        .FadeTransition: KivyWidgetInfo(
             widgetName: "FadeTransition",
-            parentClass: "ShaderTransition",
+            parentClass: .ShaderTransition,
             directProperties: [
                 KivyPropertyInfo(name: "fs", type: .stringProperty),
             ]
         ),
-        "FallOutTransition": KivyWidgetInfo(
+        .FallOutTransition: KivyWidgetInfo(
             widgetName: "FallOutTransition",
-            parentClass: "ShaderTransition",
+            parentClass: .ShaderTransition,
             directProperties: [
                 KivyPropertyInfo(name: "duration", type: .numericProperty),
                 KivyPropertyInfo(name: "fs", type: .stringProperty),
             ]
         ),
-        "FileChooser": KivyWidgetInfo(
+        .FileChooser: KivyWidgetInfo(
             widgetName: "FileChooser",
-            parentClass: "FileChooserController",
+            parentClass: .FileChooserController,
             directProperties: [
                 KivyPropertyInfo(name: "_view_list", type: .listProperty),
                 KivyPropertyInfo(name: "_view_mode", type: .stringProperty),
@@ -411,9 +535,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "view_mode", type: .aliasProperty),
             ]
         ),
-        "FileChooserController": KivyWidgetInfo(
+        .FileChooserController: KivyWidgetInfo(
             widgetName: "FileChooserController",
-            parentClass: "RelativeLayout",
+            parentClass: .RelativeLayout,
             directProperties: [
                 KivyPropertyInfo(name: "dirselect", type: .booleanProperty),
                 KivyPropertyInfo(name: "file_system", type: .objectProperty),
@@ -431,31 +555,31 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "sort_func", type: .objectProperty),
             ]
         ),
-        "FileChooserLayout": KivyWidgetInfo(
+        .FileChooserLayout: KivyWidgetInfo(
             widgetName: "FileChooserLayout",
-            parentClass: "FloatLayout",
+            parentClass: .FloatLayout,
             directProperties: [
                 KivyPropertyInfo(name: "controller", type: .objectProperty),
             ]
         ),
-        "FileChooserProgressBase": KivyWidgetInfo(
+        .FileChooserProgressBase: KivyWidgetInfo(
             widgetName: "FileChooserProgressBase",
-            parentClass: "FloatLayout",
+            parentClass: .FloatLayout,
             directProperties: [
                 KivyPropertyInfo(name: "index", type: .numericProperty),
                 KivyPropertyInfo(name: "path", type: .stringProperty),
                 KivyPropertyInfo(name: "total", type: .numericProperty),
             ]
         ),
-        "FloatLayout": KivyWidgetInfo(
+        .FloatLayout: KivyWidgetInfo(
             widgetName: "FloatLayout",
-            parentClass: "Layout",
+            parentClass: .Layout,
             directProperties: [
             ]
         ),
-        "GestureContainer": KivyWidgetInfo(
+        .GestureContainer: KivyWidgetInfo(
             widgetName: "GestureContainer",
-            parentClass: "EventDispatcher",
+            parentClass: nil,
             directProperties: [
                 KivyPropertyInfo(name: "active", type: .booleanProperty),
                 KivyPropertyInfo(name: "active_strokes", type: .numericProperty),
@@ -466,9 +590,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "width", type: .numericProperty),
             ]
         ),
-        "GestureSurface": KivyWidgetInfo(
+        .GestureSurface: KivyWidgetInfo(
             widgetName: "GestureSurface",
-            parentClass: "FloatLayout",
+            parentClass: .FloatLayout,
             directProperties: [
                 KivyPropertyInfo(name: "bbox_alpha", type: .numericProperty),
                 KivyPropertyInfo(name: "bbox_margin", type: .numericProperty),
@@ -481,9 +605,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "use_random_color", type: .booleanProperty),
             ]
         ),
-        "GridLayout": KivyWidgetInfo(
+        .GridLayout: KivyWidgetInfo(
             widgetName: "GridLayout",
-            parentClass: "Layout",
+            parentClass: .Layout,
             directProperties: [
                 KivyPropertyInfo(name: "col_default_width", type: .numericProperty),
                 KivyPropertyInfo(name: "col_force_default", type: .booleanProperty),
@@ -501,16 +625,16 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "spacing", type: .variableListProperty),
             ]
         ),
-        "HorizontalBlurEffect": KivyWidgetInfo(
+        .HorizontalBlurEffect: KivyWidgetInfo(
             widgetName: "HorizontalBlurEffect",
-            parentClass: "EffectBase",
+            parentClass: .EffectBase,
             directProperties: [
                 KivyPropertyInfo(name: "size", type: .numericProperty),
             ]
         ),
-        "Image": KivyWidgetInfo(
+        .Image: KivyWidgetInfo(
             widgetName: "Image",
-            parentClass: "Widget",
+            parentClass: .Widget,
             directProperties: [
                 KivyPropertyInfo(name: "allow_stretch", type: .booleanProperty),
                 KivyPropertyInfo(name: "anim_delay", type: .numericProperty),
@@ -528,33 +652,33 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "texture_size", type: .listProperty),
             ]
         ),
-        "InterfaceWithSidebar": KivyWidgetInfo(
+        .InterfaceWithSidebar: KivyWidgetInfo(
             widgetName: "InterfaceWithSidebar",
-            parentClass: "BoxLayout",
+            parentClass: .BoxLayout,
             directProperties: [
                 KivyPropertyInfo(name: "content", type: .objectProperty),
                 KivyPropertyInfo(name: "menu", type: .objectProperty),
             ]
         ),
-        "InterfaceWithSpinner": KivyWidgetInfo(
+        .InterfaceWithSpinner: KivyWidgetInfo(
             widgetName: "InterfaceWithSpinner",
-            parentClass: "BoxLayout",
+            parentClass: .BoxLayout,
             directProperties: [
                 KivyPropertyInfo(name: "content", type: .objectProperty),
                 KivyPropertyInfo(name: "menu", type: .objectProperty),
             ]
         ),
-        "InterfaceWithTabbedPanel": KivyWidgetInfo(
+        .InterfaceWithTabbedPanel: KivyWidgetInfo(
             widgetName: "InterfaceWithTabbedPanel",
-            parentClass: "FloatLayout",
+            parentClass: .FloatLayout,
             directProperties: [
                 KivyPropertyInfo(name: "close_button", type: .objectProperty),
                 KivyPropertyInfo(name: "tabbedpanel", type: .objectProperty),
             ]
         ),
-        "Label": KivyWidgetInfo(
+        .Label: KivyWidgetInfo(
             widgetName: "Label",
-            parentClass: "Widget",
+            parentClass: .Widget,
             directProperties: [
                 KivyPropertyInfo(name: "anchors", type: .dictProperty),
                 KivyPropertyInfo(name: "base_direction", type: .optionProperty),
@@ -602,24 +726,24 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "valign", type: .optionProperty),
             ]
         ),
-        "Layout": KivyWidgetInfo(
+        .Layout: KivyWidgetInfo(
             widgetName: "Layout",
-            parentClass: "Widget",
+            parentClass: .Widget,
             directProperties: [
             ]
         ),
-        "MenuSidebar": KivyWidgetInfo(
+        .MenuSidebar: KivyWidgetInfo(
             widgetName: "MenuSidebar",
-            parentClass: "FloatLayout",
+            parentClass: .FloatLayout,
             directProperties: [
                 KivyPropertyInfo(name: "buttons_layout", type: .objectProperty),
                 KivyPropertyInfo(name: "close_button", type: .objectProperty),
                 KivyPropertyInfo(name: "selected_uid", type: .numericProperty),
             ]
         ),
-        "MenuSpinner": KivyWidgetInfo(
+        .MenuSpinner: KivyWidgetInfo(
             widgetName: "MenuSpinner",
-            parentClass: "BoxLayout",
+            parentClass: .BoxLayout,
             directProperties: [
                 KivyPropertyInfo(name: "close_button", type: .objectProperty),
                 KivyPropertyInfo(name: "panel_names", type: .dictProperty),
@@ -628,9 +752,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "spinner_text", type: .stringProperty),
             ]
         ),
-        "ModalView": KivyWidgetInfo(
+        .ModalView: KivyWidgetInfo(
             widgetName: "ModalView",
-            parentClass: "AnchorLayout",
+            parentClass: .AnchorLayout,
             directProperties: [
                 KivyPropertyInfo(name: "_anim_alpha", type: .numericProperty),
                 KivyPropertyInfo(name: "_anim_duration", type: .numericProperty),
@@ -644,16 +768,16 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "overlay_color", type: .colorProperty),
             ]
         ),
-        "MyOwnActionButton": KivyWidgetInfo(
+        .MyOwnActionButton: KivyWidgetInfo(
             widgetName: "MyOwnActionButton",
-            parentClass: "Button",
+            parentClass: .Button,
             directProperties: [
                 KivyPropertyInfo(name: "icon", type: .stringProperty),
             ]
         ),
-        "MyWidget": KivyWidgetInfo(
+        .MyWidget: KivyWidgetInfo(
             widgetName: "MyWidget",
-            parentClass: "Widget",
+            parentClass: .Widget,
             directProperties: [
                 KivyPropertyInfo(name: "center", type: .referenceListProperty),
                 KivyPropertyInfo(name: "center_x", type: .aliasProperty),
@@ -685,16 +809,16 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "y", type: .numericProperty),
             ]
         ),
-        "NoTransition": KivyWidgetInfo(
+        .NoTransition: KivyWidgetInfo(
             widgetName: "NoTransition",
-            parentClass: "TransitionBase",
+            parentClass: .TransitionBase,
             directProperties: [
                 KivyPropertyInfo(name: "duration", type: .numericProperty),
             ]
         ),
-        "OtherWidget": KivyWidgetInfo(
+        .OtherWidget: KivyWidgetInfo(
             widgetName: "OtherWidget",
-            parentClass: "MyWidget",
+            parentClass: .MyWidget,
             directProperties: [
                 KivyPropertyInfo(name: "center", type: .referenceListProperty),
                 KivyPropertyInfo(name: "center_x", type: .aliasProperty),
@@ -726,9 +850,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "y", type: .numericProperty),
             ]
         ),
-        "PageLayout": KivyWidgetInfo(
+        .PageLayout: KivyWidgetInfo(
             widgetName: "PageLayout",
-            parentClass: "Layout",
+            parentClass: .Layout,
             directProperties: [
                 KivyPropertyInfo(name: "anim_kwargs", type: .dictProperty),
                 KivyPropertyInfo(name: "border", type: .numericProperty),
@@ -736,16 +860,16 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "swipe_threshold", type: .numericProperty),
             ]
         ),
-        "PixelateEffect": KivyWidgetInfo(
+        .PixelateEffect: KivyWidgetInfo(
             widgetName: "PixelateEffect",
-            parentClass: "EffectBase",
+            parentClass: .EffectBase,
             directProperties: [
                 KivyPropertyInfo(name: "pixel_size", type: .numericProperty),
             ]
         ),
-        "Popup": KivyWidgetInfo(
+        .Popup: KivyWidgetInfo(
             widgetName: "Popup",
-            parentClass: "ModalView",
+            parentClass: .ModalView,
             directProperties: [
                 KivyPropertyInfo(name: "_container", type: .objectProperty),
                 KivyPropertyInfo(name: "content", type: .objectProperty),
@@ -758,18 +882,18 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "title_size", type: .numericProperty),
             ]
         ),
-        "ProgressBar": KivyWidgetInfo(
+        .ProgressBar: KivyWidgetInfo(
             widgetName: "ProgressBar",
-            parentClass: "Widget",
+            parentClass: .Widget,
             directProperties: [
                 KivyPropertyInfo(name: "max", type: .numericProperty),
                 KivyPropertyInfo(name: "value", type: .aliasProperty),
                 KivyPropertyInfo(name: "value_normalized", type: .aliasProperty),
             ]
         ),
-        "RecycleLayout": KivyWidgetInfo(
+        .RecycleLayout: KivyWidgetInfo(
             widgetName: "RecycleLayout",
-            parentClass: "RecycleLayoutManagerBehavior",
+            parentClass: nil,
             directProperties: [
                 KivyPropertyInfo(name: "default_height", type: .numericProperty),
                 KivyPropertyInfo(name: "default_pos_hint", type: .objectProperty),
@@ -794,51 +918,51 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "key_size_hint_min", type: .stringProperty),
             ]
         ),
-        "RelativeLayout": KivyWidgetInfo(
+        .RelativeLayout: KivyWidgetInfo(
             widgetName: "RelativeLayout",
-            parentClass: "FloatLayout",
+            parentClass: .FloatLayout,
             directProperties: [
             ]
         ),
-        "RiseInTransition": KivyWidgetInfo(
+        .RiseInTransition: KivyWidgetInfo(
             widgetName: "RiseInTransition",
-            parentClass: "ShaderTransition",
+            parentClass: .ShaderTransition,
             directProperties: [
                 KivyPropertyInfo(name: "duration", type: .numericProperty),
                 KivyPropertyInfo(name: "fs", type: .stringProperty),
             ]
         ),
-        "RstBlockQuote": KivyWidgetInfo(
+        .RstBlockQuote: KivyWidgetInfo(
             widgetName: "RstBlockQuote",
-            parentClass: "GridLayout",
+            parentClass: .GridLayout,
             directProperties: [
                 KivyPropertyInfo(name: "content", type: .objectProperty),
             ]
         ),
-        "RstDefinition": KivyWidgetInfo(
+        .RstDefinition: KivyWidgetInfo(
             widgetName: "RstDefinition",
-            parentClass: "GridLayout",
+            parentClass: .GridLayout,
             directProperties: [
                 KivyPropertyInfo(name: "document", type: .objectProperty),
             ]
         ),
-        "RstDefinitionList": KivyWidgetInfo(
+        .RstDefinitionList: KivyWidgetInfo(
             widgetName: "RstDefinitionList",
-            parentClass: "GridLayout",
+            parentClass: .GridLayout,
             directProperties: [
                 KivyPropertyInfo(name: "document", type: .objectProperty),
             ]
         ),
-        "RstDefinitionSpace": KivyWidgetInfo(
+        .RstDefinitionSpace: KivyWidgetInfo(
             widgetName: "RstDefinitionSpace",
-            parentClass: "Widget",
+            parentClass: .Widget,
             directProperties: [
                 KivyPropertyInfo(name: "document", type: .objectProperty),
             ]
         ),
-        "RstDocument": KivyWidgetInfo(
+        .RstDocument: KivyWidgetInfo(
             widgetName: "RstDocument",
-            parentClass: "ScrollView",
+            parentClass: .ScrollView,
             directProperties: [
                 KivyPropertyInfo(name: "anchors_widgets", type: .listProperty),
                 KivyPropertyInfo(name: "background_color", type: .aliasProperty),
@@ -858,83 +982,83 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "underline_color", type: .stringProperty),
             ]
         ),
-        "RstFieldName": KivyWidgetInfo(
+        .RstFieldName: KivyWidgetInfo(
             widgetName: "RstFieldName",
-            parentClass: "Label",
+            parentClass: .Label,
             directProperties: [
                 KivyPropertyInfo(name: "document", type: .objectProperty),
             ]
         ),
-        "RstFootName": KivyWidgetInfo(
+        .RstFootName: KivyWidgetInfo(
             widgetName: "RstFootName",
-            parentClass: "Label",
+            parentClass: .Label,
             directProperties: [
                 KivyPropertyInfo(name: "document", type: .objectProperty),
             ]
         ),
-        "RstListBullet": KivyWidgetInfo(
+        .RstListBullet: KivyWidgetInfo(
             widgetName: "RstListBullet",
-            parentClass: "Label",
+            parentClass: .Label,
             directProperties: [
                 KivyPropertyInfo(name: "document", type: .objectProperty),
             ]
         ),
-        "RstListItem": KivyWidgetInfo(
+        .RstListItem: KivyWidgetInfo(
             widgetName: "RstListItem",
-            parentClass: "GridLayout",
+            parentClass: .GridLayout,
             directProperties: [
                 KivyPropertyInfo(name: "content", type: .objectProperty),
             ]
         ),
-        "RstLiteralBlock": KivyWidgetInfo(
+        .RstLiteralBlock: KivyWidgetInfo(
             widgetName: "RstLiteralBlock",
-            parentClass: "GridLayout",
+            parentClass: .GridLayout,
             directProperties: [
                 KivyPropertyInfo(name: "content", type: .objectProperty),
             ]
         ),
-        "RstNote": KivyWidgetInfo(
+        .RstNote: KivyWidgetInfo(
             widgetName: "RstNote",
-            parentClass: "GridLayout",
+            parentClass: .GridLayout,
             directProperties: [
                 KivyPropertyInfo(name: "content", type: .objectProperty),
             ]
         ),
-        "RstParagraph": KivyWidgetInfo(
+        .RstParagraph: KivyWidgetInfo(
             widgetName: "RstParagraph",
-            parentClass: "Label",
+            parentClass: .Label,
             directProperties: [
                 KivyPropertyInfo(name: "document", type: .objectProperty),
                 KivyPropertyInfo(name: "mx", type: .numericProperty),
                 KivyPropertyInfo(name: "my", type: .numericProperty),
             ]
         ),
-        "RstTerm": KivyWidgetInfo(
+        .RstTerm: KivyWidgetInfo(
             widgetName: "RstTerm",
-            parentClass: "AnchorLayout",
+            parentClass: .AnchorLayout,
             directProperties: [
                 KivyPropertyInfo(name: "document", type: .objectProperty),
                 KivyPropertyInfo(name: "text", type: .stringProperty),
             ]
         ),
-        "RstTitle": KivyWidgetInfo(
+        .RstTitle: KivyWidgetInfo(
             widgetName: "RstTitle",
-            parentClass: "Label",
+            parentClass: .Label,
             directProperties: [
                 KivyPropertyInfo(name: "document", type: .objectProperty),
                 KivyPropertyInfo(name: "section", type: .numericProperty),
             ]
         ),
-        "RstWarning": KivyWidgetInfo(
+        .RstWarning: KivyWidgetInfo(
             widgetName: "RstWarning",
-            parentClass: "GridLayout",
+            parentClass: .GridLayout,
             directProperties: [
                 KivyPropertyInfo(name: "content", type: .objectProperty),
             ]
         ),
-        "Scatter": KivyWidgetInfo(
+        .Scatter: KivyWidgetInfo(
             widgetName: "Scatter",
-            parentClass: "Widget",
+            parentClass: .Widget,
             directProperties: [
                 KivyPropertyInfo(name: "auto_bring_to_front", type: .booleanProperty),
                 KivyPropertyInfo(name: "bbox", type: .aliasProperty),
@@ -961,16 +1085,16 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "y", type: .aliasProperty),
             ]
         ),
-        "ScatterLayout": KivyWidgetInfo(
+        .ScatterLayout: KivyWidgetInfo(
             widgetName: "ScatterLayout",
-            parentClass: "Scatter",
+            parentClass: .Scatter,
             directProperties: [
                 KivyPropertyInfo(name: "content", type: .objectProperty),
             ]
         ),
-        "Screen": KivyWidgetInfo(
+        .Screen: KivyWidgetInfo(
             widgetName: "Screen",
-            parentClass: "RelativeLayout",
+            parentClass: .RelativeLayout,
             directProperties: [
                 KivyPropertyInfo(name: "manager", type: .objectProperty),
                 KivyPropertyInfo(name: "name", type: .stringProperty),
@@ -978,9 +1102,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "transition_state", type: .optionProperty),
             ]
         ),
-        "ScreenManager": KivyWidgetInfo(
+        .ScreenManager: KivyWidgetInfo(
             widgetName: "ScreenManager",
-            parentClass: "FloatLayout",
+            parentClass: .FloatLayout,
             directProperties: [
                 KivyPropertyInfo(name: "current", type: .stringProperty),
                 KivyPropertyInfo(name: "current_screen", type: .objectProperty),
@@ -989,9 +1113,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "transition", type: .objectProperty),
             ]
         ),
-        "ScrollView": KivyWidgetInfo(
+        .ScrollView: KivyWidgetInfo(
             widgetName: "ScrollView",
-            parentClass: "StencilView",
+            parentClass: nil,
             directProperties: [
                 KivyPropertyInfo(name: "_bar_color", type: .listProperty),
                 KivyPropertyInfo(name: "_viewport", type: .objectProperty),
@@ -1024,32 +1148,32 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "viewport_size", type: .listProperty),
             ]
         ),
-        "Selector": KivyWidgetInfo(
+        .Selector: KivyWidgetInfo(
             widgetName: "Selector",
-            parentClass: "ButtonBehavior",
+            parentClass: nil,
             directProperties: [
                 KivyPropertyInfo(name: "matrix", type: .objectProperty),
                 KivyPropertyInfo(name: "target", type: .objectProperty),
                 KivyPropertyInfo(name: "window", type: .objectProperty),
             ]
         ),
-        "SettingBoolean": KivyWidgetInfo(
+        .SettingBoolean: KivyWidgetInfo(
             widgetName: "SettingBoolean",
-            parentClass: "SettingItem",
+            parentClass: .SettingItem,
             directProperties: [
                 KivyPropertyInfo(name: "values", type: .listProperty),
             ]
         ),
-        "SettingColor": KivyWidgetInfo(
+        .SettingColor: KivyWidgetInfo(
             widgetName: "SettingColor",
-            parentClass: "SettingItem",
+            parentClass: .SettingItem,
             directProperties: [
                 KivyPropertyInfo(name: "popup", type: .objectProperty),
             ]
         ),
-        "SettingItem": KivyWidgetInfo(
+        .SettingItem: KivyWidgetInfo(
             widgetName: "SettingItem",
-            parentClass: "FloatLayout",
+            parentClass: .FloatLayout,
             directProperties: [
                 KivyPropertyInfo(name: "content", type: .objectProperty),
                 KivyPropertyInfo(name: "desc", type: .stringProperty),
@@ -1062,17 +1186,17 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "value", type: .objectProperty),
             ]
         ),
-        "SettingOptions": KivyWidgetInfo(
+        .SettingOptions: KivyWidgetInfo(
             widgetName: "SettingOptions",
-            parentClass: "SettingItem",
+            parentClass: .SettingItem,
             directProperties: [
                 KivyPropertyInfo(name: "options", type: .listProperty),
                 KivyPropertyInfo(name: "popup", type: .objectProperty),
             ]
         ),
-        "SettingPath": KivyWidgetInfo(
+        .SettingPath: KivyWidgetInfo(
             widgetName: "SettingPath",
-            parentClass: "SettingItem",
+            parentClass: .SettingItem,
             directProperties: [
                 KivyPropertyInfo(name: "dirselect", type: .booleanProperty),
                 KivyPropertyInfo(name: "popup", type: .objectProperty),
@@ -1080,67 +1204,67 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "textinput", type: .objectProperty),
             ]
         ),
-        "SettingSidebarLabel": KivyWidgetInfo(
+        .SettingSidebarLabel: KivyWidgetInfo(
             widgetName: "SettingSidebarLabel",
-            parentClass: "Label",
+            parentClass: .Label,
             directProperties: [
                 KivyPropertyInfo(name: "menu", type: .objectProperty),
                 KivyPropertyInfo(name: "selected", type: .booleanProperty),
                 KivyPropertyInfo(name: "uid", type: .numericProperty),
             ]
         ),
-        "SettingString": KivyWidgetInfo(
+        .SettingString: KivyWidgetInfo(
             widgetName: "SettingString",
-            parentClass: "SettingItem",
+            parentClass: .SettingItem,
             directProperties: [
                 KivyPropertyInfo(name: "popup", type: .objectProperty),
                 KivyPropertyInfo(name: "textinput", type: .objectProperty),
             ]
         ),
-        "SettingTitle": KivyWidgetInfo(
+        .SettingTitle: KivyWidgetInfo(
             widgetName: "SettingTitle",
-            parentClass: "Label",
+            parentClass: .Label,
             directProperties: [
                 KivyPropertyInfo(name: "panel", type: .objectProperty),
                 KivyPropertyInfo(name: "title", type: .stringProperty),
             ]
         ),
-        "Settings": KivyWidgetInfo(
+        .Settings: KivyWidgetInfo(
             widgetName: "Settings",
-            parentClass: "BoxLayout",
+            parentClass: .BoxLayout,
             directProperties: [
                 KivyPropertyInfo(name: "interface", type: .objectProperty),
                 KivyPropertyInfo(name: "interface_cls", type: .objectProperty),
             ]
         ),
-        "SettingsPanel": KivyWidgetInfo(
+        .SettingsPanel: KivyWidgetInfo(
             widgetName: "SettingsPanel",
-            parentClass: "GridLayout",
+            parentClass: .GridLayout,
             directProperties: [
                 KivyPropertyInfo(name: "config", type: .objectProperty),
                 KivyPropertyInfo(name: "settings", type: .objectProperty),
                 KivyPropertyInfo(name: "title", type: .stringProperty),
             ]
         ),
-        "ShaderTransition": KivyWidgetInfo(
+        .ShaderTransition: KivyWidgetInfo(
             widgetName: "ShaderTransition",
-            parentClass: "TransitionBase",
+            parentClass: .TransitionBase,
             directProperties: [
                 KivyPropertyInfo(name: "clearcolor", type: .colorProperty),
                 KivyPropertyInfo(name: "fs", type: .stringProperty),
                 KivyPropertyInfo(name: "vs", type: .stringProperty),
             ]
         ),
-        "SlideTransition": KivyWidgetInfo(
+        .SlideTransition: KivyWidgetInfo(
             widgetName: "SlideTransition",
-            parentClass: "TransitionBase",
+            parentClass: .TransitionBase,
             directProperties: [
                 KivyPropertyInfo(name: "direction", type: .optionProperty),
             ]
         ),
-        "Slider": KivyWidgetInfo(
+        .Slider: KivyWidgetInfo(
             widgetName: "Slider",
-            parentClass: "Widget",
+            parentClass: .Widget,
             directProperties: [
                 KivyPropertyInfo(name: "background_disabled_horizontal", type: .stringProperty),
                 KivyPropertyInfo(name: "background_disabled_vertical", type: .stringProperty),
@@ -1169,9 +1293,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "value_track_width", type: .numericProperty),
             ]
         ),
-        "Spinner": KivyWidgetInfo(
+        .Spinner: KivyWidgetInfo(
             widgetName: "Spinner",
-            parentClass: "Button",
+            parentClass: .Button,
             directProperties: [
                 KivyPropertyInfo(name: "dropdown_cls", type: .objectProperty),
                 KivyPropertyInfo(name: "is_open", type: .booleanProperty),
@@ -1181,9 +1305,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "values", type: .listProperty),
             ]
         ),
-        "Splitter": KivyWidgetInfo(
+        .Splitter: KivyWidgetInfo(
             widgetName: "Splitter",
-            parentClass: "BoxLayout",
+            parentClass: .BoxLayout,
             directProperties: [
                 KivyPropertyInfo(name: "_bound_parent", type: .objectProperty),
                 KivyPropertyInfo(name: "_parent_proportion", type: .numericProperty),
@@ -1197,9 +1321,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "strip_size", type: .numericProperty),
             ]
         ),
-        "StackLayout": KivyWidgetInfo(
+        .StackLayout: KivyWidgetInfo(
             widgetName: "StackLayout",
-            parentClass: "Layout",
+            parentClass: .Layout,
             directProperties: [
                 KivyPropertyInfo(name: "minimum_height", type: .numericProperty),
                 KivyPropertyInfo(name: "minimum_size", type: .referenceListProperty),
@@ -1209,17 +1333,17 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "spacing", type: .variableListProperty),
             ]
         ),
-        "StripLayout": KivyWidgetInfo(
+        .StripLayout: KivyWidgetInfo(
             widgetName: "StripLayout",
-            parentClass: "GridLayout",
+            parentClass: .GridLayout,
             directProperties: [
                 KivyPropertyInfo(name: "background_image", type: .stringProperty),
                 KivyPropertyInfo(name: "border", type: .listProperty),
             ]
         ),
-        "Switch": KivyWidgetInfo(
+        .Switch: KivyWidgetInfo(
             widgetName: "Switch",
-            parentClass: "Widget",
+            parentClass: .Widget,
             directProperties: [
                 KivyPropertyInfo(name: "active", type: .booleanProperty),
                 KivyPropertyInfo(name: "active_norm_pos", type: .numericProperty),
@@ -1227,9 +1351,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "touch_distance", type: .numericProperty),
             ]
         ),
-        "TabbedPanel": KivyWidgetInfo(
+        .TabbedPanel: KivyWidgetInfo(
             widgetName: "TabbedPanel",
-            parentClass: "GridLayout",
+            parentClass: .GridLayout,
             directProperties: [
                 KivyPropertyInfo(name: "_current_tab", type: .objectProperty),
                 KivyPropertyInfo(name: "_default_tab", type: .objectProperty),
@@ -1254,23 +1378,23 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "tab_width", type: .numericProperty),
             ]
         ),
-        "TabbedPanelHeader": KivyWidgetInfo(
+        .TabbedPanelHeader: KivyWidgetInfo(
             widgetName: "TabbedPanelHeader",
-            parentClass: "ToggleButton",
+            parentClass: .TabbedPanelHeader,
             directProperties: [
                 KivyPropertyInfo(name: "content", type: .objectProperty),
             ]
         ),
-        "TabbedPanelStrip": KivyWidgetInfo(
+        .TabbedPanelStrip: KivyWidgetInfo(
             widgetName: "TabbedPanelStrip",
-            parentClass: "GridLayout",
+            parentClass: .GridLayout,
             directProperties: [
                 KivyPropertyInfo(name: "tabbed_panel", type: .objectProperty),
             ]
         ),
-        "TextInput": KivyWidgetInfo(
+        .TextInput: KivyWidgetInfo(
             widgetName: "TextInput",
-            parentClass: "FocusBehavior",
+            parentClass: nil,
             directProperties: [
                 KivyPropertyInfo(name: "_cursor_blink", type: .booleanProperty),
                 KivyPropertyInfo(name: "_cursor_visual_height", type: .aliasProperty),
@@ -1339,16 +1463,16 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "write_tab", type: .booleanProperty),
             ]
         ),
-        "TextInputApp": KivyWidgetInfo(
+        .TextInputApp: KivyWidgetInfo(
             widgetName: "TextInputApp",
-            parentClass: "App",
+            parentClass: nil,
             directProperties: [
                 KivyPropertyInfo(name: "time", type: .numericProperty),
             ]
         ),
-        "TextInputCutCopyPaste": KivyWidgetInfo(
+        .TextInputCutCopyPaste: KivyWidgetInfo(
             widgetName: "TextInputCutCopyPaste",
-            parentClass: "Bubble",
+            parentClass: .Bubble,
             directProperties: [
                 KivyPropertyInfo(name: "but_copy", type: .objectProperty),
                 KivyPropertyInfo(name: "but_cut", type: .objectProperty),
@@ -1358,9 +1482,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "textinput", type: .objectProperty),
             ]
         ),
-        "TransitionBase": KivyWidgetInfo(
+        .TransitionBase: KivyWidgetInfo(
             widgetName: "TransitionBase",
-            parentClass: "EventDispatcher",
+            parentClass: nil,
             directProperties: [
                 KivyPropertyInfo(name: "_anim", type: .objectProperty),
                 KivyPropertyInfo(name: "duration", type: .numericProperty),
@@ -1370,9 +1494,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "screen_out", type: .objectProperty),
             ]
         ),
-        "TreeView": KivyWidgetInfo(
+        .TreeView: KivyWidgetInfo(
             widgetName: "TreeView",
-            parentClass: "Widget",
+            parentClass: .Widget,
             directProperties: [
                 KivyPropertyInfo(name: "_root", type: .objectProperty),
                 KivyPropertyInfo(name: "_selected_node", type: .objectProperty),
@@ -1388,9 +1512,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "selected_node", type: .aliasProperty),
             ]
         ),
-        "TreeViewNode": KivyWidgetInfo(
+        .TreeViewNode: KivyWidgetInfo(
             widgetName: "TreeViewNode",
-            parentClass: "object",
+            parentClass: nil,
             directProperties: [
                 KivyPropertyInfo(name: "color_selected", type: .colorProperty),
                 KivyPropertyInfo(name: "even_color", type: .colorProperty),
@@ -1406,9 +1530,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "parent_node", type: .objectProperty),
             ]
         ),
-        "VKeyboard": KivyWidgetInfo(
+        .VKeyboard: KivyWidgetInfo(
             widgetName: "VKeyboard",
-            parentClass: "Scatter",
+            parentClass: .Scatter,
             directProperties: [
                 KivyPropertyInfo(name: "active_keys", type: .dictProperty),
                 KivyPropertyInfo(name: "available_layouts", type: .dictProperty),
@@ -1438,16 +1562,16 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "target", type: .objectProperty),
             ]
         ),
-        "VerticalBlurEffect": KivyWidgetInfo(
+        .VerticalBlurEffect: KivyWidgetInfo(
             widgetName: "VerticalBlurEffect",
-            parentClass: "EffectBase",
+            parentClass: .EffectBase,
             directProperties: [
                 KivyPropertyInfo(name: "size", type: .numericProperty),
             ]
         ),
-        "Video": KivyWidgetInfo(
+        .Video: KivyWidgetInfo(
             widgetName: "Video",
-            parentClass: "Image",
+            parentClass: .Image,
             directProperties: [
                 KivyPropertyInfo(name: "duration", type: .numericProperty),
                 KivyPropertyInfo(name: "eos", type: .booleanProperty),
@@ -1459,9 +1583,9 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "volume", type: .numericProperty),
             ]
         ),
-        "VideoPlayer": KivyWidgetInfo(
+        .VideoPlayer: KivyWidgetInfo(
             widgetName: "VideoPlayer",
-            parentClass: "GridLayout",
+            parentClass: .GridLayout,
             directProperties: [
                 KivyPropertyInfo(name: "allow_fullscreen", type: .booleanProperty),
                 KivyPropertyInfo(name: "annotations", type: .stringProperty),
@@ -1485,57 +1609,57 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "volume", type: .numericProperty),
             ]
         ),
-        "VideoPlayerAnnotation": KivyWidgetInfo(
+        .VideoPlayerAnnotation: KivyWidgetInfo(
             widgetName: "VideoPlayerAnnotation",
-            parentClass: "Label",
+            parentClass: .Label,
             directProperties: [
                 KivyPropertyInfo(name: "annotation", type: .dictProperty),
                 KivyPropertyInfo(name: "duration", type: .numericProperty),
                 KivyPropertyInfo(name: "start", type: .numericProperty),
             ]
         ),
-        "VideoPlayerPlayPause": KivyWidgetInfo(
+        .VideoPlayerPlayPause: KivyWidgetInfo(
             widgetName: "VideoPlayerPlayPause",
-            parentClass: "Image",
+            parentClass: .Image,
             directProperties: [
                 KivyPropertyInfo(name: "video", type: .objectProperty),
             ]
         ),
-        "VideoPlayerPreview": KivyWidgetInfo(
+        .VideoPlayerPreview: KivyWidgetInfo(
             widgetName: "VideoPlayerPreview",
-            parentClass: "FloatLayout",
+            parentClass: .FloatLayout,
             directProperties: [
                 KivyPropertyInfo(name: "click_done", type: .booleanProperty),
                 KivyPropertyInfo(name: "source", type: .objectProperty),
                 KivyPropertyInfo(name: "video", type: .objectProperty),
             ]
         ),
-        "VideoPlayerProgressBar": KivyWidgetInfo(
+        .VideoPlayerProgressBar: KivyWidgetInfo(
             widgetName: "VideoPlayerProgressBar",
-            parentClass: "ProgressBar",
+            parentClass: .ProgressBar,
             directProperties: [
                 KivyPropertyInfo(name: "alpha", type: .numericProperty),
                 KivyPropertyInfo(name: "seek", type: .numericProperty),
                 KivyPropertyInfo(name: "video", type: .objectProperty),
             ]
         ),
-        "VideoPlayerStop": KivyWidgetInfo(
+        .VideoPlayerStop: KivyWidgetInfo(
             widgetName: "VideoPlayerStop",
-            parentClass: "Image",
+            parentClass: .Image,
             directProperties: [
                 KivyPropertyInfo(name: "video", type: .objectProperty),
             ]
         ),
-        "VideoPlayerVolume": KivyWidgetInfo(
+        .VideoPlayerVolume: KivyWidgetInfo(
             widgetName: "VideoPlayerVolume",
-            parentClass: "Image",
+            parentClass: .Image,
             directProperties: [
                 KivyPropertyInfo(name: "video", type: .objectProperty),
             ]
         ),
-        "Widget": KivyWidgetInfo(
+        .Widget: KivyWidgetInfo(
             widgetName: "Widget",
-            parentClass: "WidgetBase",
+            parentClass: nil,
             directProperties: [
                 KivyPropertyInfo(name: "center", type: .referenceListProperty),
                 KivyPropertyInfo(name: "center_x", type: .aliasProperty),
@@ -1567,75 +1691,124 @@ public class KivyWidgetRegistry {
                 KivyPropertyInfo(name: "y", type: .numericProperty),
             ]
         ),
-        "WipeTransition": KivyWidgetInfo(
+        .WipeTransition: KivyWidgetInfo(
             widgetName: "WipeTransition",
-            parentClass: "ShaderTransition",
+            parentClass: .ShaderTransition,
             directProperties: [
                 KivyPropertyInfo(name: "fs", type: .stringProperty),
             ]
         ),
     ]
     
-    /// Get widget information by name
+    /// Get widget information by enum case
+    /// - Parameter widget: The widget enum case
+    /// - Returns: Widget information if found, nil otherwise
+    public static func getWidgetInfo(_ widget: KivyWidget) -> KivyWidgetInfo? {
+        return widgetRegistry[widget]
+    }
+    
+    /// Get widget information by name (for backward compatibility)
     /// - Parameter widgetName: Name of the widget (e.g., "Button", "Label")
     /// - Returns: Widget information if found, nil otherwise
     public static func getWidgetInfo(_ widgetName: String) -> KivyWidgetInfo? {
-        return widgetRegistry[widgetName]
+        guard let widget = KivyWidget(rawValue: widgetName) else { return nil }
+        return widgetRegistry[widget]
     }
     
     /// Get all properties for a widget including inherited properties
-    /// - Parameter widgetName: Name of the widget
+    /// - Parameter widget: The widget enum case or name
     /// - Returns: Set of all properties (direct + inherited)
-    public static func getAllProperties(for widgetName: String) -> Set<KivyPropertyInfo> {
+    public static func getAllProperties(for widget: KivyWidget) -> Set<KivyPropertyInfo> {
         var allProperties = Set<KivyPropertyInfo>()
         
         // Recursively collect properties from parent classes
-        func collectProperties(from widget: String) {
+        func collectProperties(from widget: KivyWidget) {
             guard let info = widgetRegistry[widget] else { return }
             
             // Add this widget's properties
             allProperties.formUnion(info.directProperties)
             
             // Recursively add parent's properties
-            if let parent = info.parentClass {
-                collectProperties(from: parent)
+            if let parentWidget = info.parentClass {
+                collectProperties(from: parentWidget)
             }
         }
         
-        collectProperties(from: widgetName)
+        collectProperties(from: widget)
         return allProperties
+    }
+    
+    /// Get all properties for a widget including inherited properties (string-based for backward compatibility)
+    /// - Parameter widgetName: Name of the widget
+    /// - Returns: Set of all properties (direct + inherited)
+    public static func getAllProperties(for widgetName: String) -> Set<KivyPropertyInfo> {
+        guard let widget = KivyWidget(rawValue: widgetName) else { return [] }
+        return getAllProperties(for: widget)
     }
     
     /// Check if a property exists on a widget (including inherited properties)
     /// - Parameters:
     ///   - propertyName: Name of the property
+    ///   - widget: The widget enum case
+    /// - Returns: true if the property exists on the widget or its parents
+    public static func hasProperty(_ propertyName: String, on widget: KivyWidget) -> Bool {
+        let allProps = getAllProperties(for: widget)
+        return allProps.contains { $0.name == propertyName }
+    }
+    
+    /// Check if a property exists on a widget (including inherited properties) - string-based for backward compatibility
+    /// - Parameters:
+    ///   - propertyName: Name of the property
     ///   - widgetName: Name of the widget
     /// - Returns: true if the property exists on the widget or its parents
     public static func hasProperty(_ propertyName: String, on widgetName: String) -> Bool {
-        let allProps = getAllProperties(for: widgetName)
-        return allProps.contains { $0.name == propertyName }
+        guard let widget = KivyWidget(rawValue: widgetName) else { return false }
+        return hasProperty(propertyName, on: widget)
     }
     
     /// Get the type of a property on a widget
     /// - Parameters:
     ///   - propertyName: Name of the property
+    ///   - widget: The widget enum case
+    /// - Returns: Property type if found, nil otherwise
+    public static func getPropertyType(_ propertyName: String, on widget: KivyWidget) -> KivyPropertyType? {
+        let allProps = getAllProperties(for: widget)
+        return allProps.first { $0.name == propertyName }?.type
+    }
+    
+    /// Get the type of a property on a widget (string-based for backward compatibility)
+    /// - Parameters:
+    ///   - propertyName: Name of the property
     ///   - widgetName: Name of the widget
     /// - Returns: Property type if found, nil otherwise
     public static func getPropertyType(_ propertyName: String, on widgetName: String) -> KivyPropertyType? {
-        let allProps = getAllProperties(for: widgetName)
-        return allProps.first { $0.name == propertyName }?.type
+        guard let widget = KivyWidget(rawValue: widgetName) else { return nil }
+        return getPropertyType(propertyName, on: widget)
     }
     
     /// Get all registered widget names
     /// - Returns: Array of all widget names
     public static func getAllWidgetNames() -> [String] {
-        return Array(widgetRegistry.keys).sorted()
+        return KivyWidget.allCases.map { $0.rawValue }.sorted()
+    }
+    
+    /// Get all registered widgets as enum cases
+    /// - Returns: Array of all widget enum cases
+    public static func getAllWidgets() -> [KivyWidget] {
+        return KivyWidget.allCases.sorted { $0.rawValue < $1.rawValue }
     }
     
     /// Check if a widget exists in the registry
+    /// - Parameter widget: The widget enum case
+    /// - Returns: true if the widget is registered
+    public static func widgetExists(_ widget: KivyWidget) -> Bool {
+        return widgetRegistry[widget] != nil
+    }
+    
+    /// Check if a widget exists in the registry (string-based for backward compatibility)
     /// - Parameter widgetName: Name of the widget
     /// - Returns: true if the widget is registered
     public static func widgetExists(_ widgetName: String) -> Bool {
-        return widgetRegistry[widgetName] != nil
+        return KivyWidget(rawValue: widgetName) != nil
     }
 }
