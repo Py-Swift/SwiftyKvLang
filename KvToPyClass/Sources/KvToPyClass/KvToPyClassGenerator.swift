@@ -373,16 +373,16 @@ public struct KvToPyClassGenerator {
         }
         
         // Add __init__ method if there are properties or children
-        let hasBindings = hasAppBindingsInChildren(rule.children)
-        if !rule.properties.isEmpty || !rule.children.isEmpty {
+        let hasInit = !rule.properties.isEmpty || !rule.children.isEmpty
+        if hasInit {
             body.append(try generateInitMethod(rule, baseClasses: baseClasses, className: className))
         } else if body.isEmpty {
             // Empty class needs pass statement
             body.append(.pass(Pass(lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)))
         }
         
-        // Add __del__ method if there are bindings to clean up
-        if hasBindings {
+        // Add __del__ method if we have __init__ (which always initializes self._bindings)
+        if hasInit {
             body.append(generateDelMethod())
         }
         

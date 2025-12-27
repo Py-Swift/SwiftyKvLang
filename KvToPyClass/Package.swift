@@ -41,7 +41,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "KvToPyClassCLI",
-            dependencies: ["KvToPyClass"],
+            dependencies: ["KvToPyClass", "KivyWidgetRegistry"],
             path: "Sources/KvToPyClassCLI"
         ),
         .testTarget(
