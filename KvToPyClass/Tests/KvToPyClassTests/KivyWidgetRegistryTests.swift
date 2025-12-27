@@ -29,26 +29,26 @@ final class KivyWidgetRegistryTests: XCTestCase {
         XCTAssertNotNil(widgetInfo)
         
         let widgetProps = widgetInfo?.directProperties ?? []
-        XCTAssertTrue(widgetProps.contains(KivyPropertyInfo(name: "x", type: "NumericProperty")))
-        XCTAssertTrue(widgetProps.contains(KivyPropertyInfo(name: "y", type: "NumericProperty")))
-        XCTAssertTrue(widgetProps.contains(KivyPropertyInfo(name: "width", type: "NumericProperty")))
-        XCTAssertTrue(widgetProps.contains(KivyPropertyInfo(name: "height", type: "NumericProperty")))
-        XCTAssertTrue(widgetProps.contains(KivyPropertyInfo(name: "pos", type: "ReferenceListProperty")))
-        XCTAssertTrue(widgetProps.contains(KivyPropertyInfo(name: "size", type: "ReferenceListProperty")))
+        XCTAssertTrue(widgetProps.contains(KivyPropertyInfo(name: "x", type: .numericProperty)))
+        XCTAssertTrue(widgetProps.contains(KivyPropertyInfo(name: "y", type: .numericProperty)))
+        XCTAssertTrue(widgetProps.contains(KivyPropertyInfo(name: "width", type: .numericProperty)))
+        XCTAssertTrue(widgetProps.contains(KivyPropertyInfo(name: "height", type: .numericProperty)))
+        XCTAssertTrue(widgetProps.contains(KivyPropertyInfo(name: "pos", type: .referenceListProperty)))
+        XCTAssertTrue(widgetProps.contains(KivyPropertyInfo(name: "size", type: .referenceListProperty)))
         
         // Test Label properties
         let labelInfo = KivyWidgetRegistry.getWidgetInfo("Label")
         let labelProps = labelInfo?.directProperties ?? []
-        XCTAssertTrue(labelProps.contains(KivyPropertyInfo(name: "text", type: "StringProperty")))
-        XCTAssertTrue(labelProps.contains(KivyPropertyInfo(name: "font_size", type: "NumericProperty")))
-        XCTAssertTrue(labelProps.contains(KivyPropertyInfo(name: "color", type: "ColorProperty")))
-        XCTAssertTrue(labelProps.contains(KivyPropertyInfo(name: "bold", type: "BooleanProperty")))
+        XCTAssertTrue(labelProps.contains(KivyPropertyInfo(name: "text", type: .stringProperty)))
+        XCTAssertTrue(labelProps.contains(KivyPropertyInfo(name: "font_size", type: .numericProperty)))
+        XCTAssertTrue(labelProps.contains(KivyPropertyInfo(name: "color", type: .colorProperty)))
+        XCTAssertTrue(labelProps.contains(KivyPropertyInfo(name: "bold", type: .booleanProperty)))
         
         // Test Button properties
         let buttonInfo = KivyWidgetRegistry.getWidgetInfo("Button")
         let buttonProps = buttonInfo?.directProperties ?? []
-        XCTAssertTrue(buttonProps.contains(KivyPropertyInfo(name: "background_color", type: "ColorProperty")))
-        XCTAssertTrue(buttonProps.contains(KivyPropertyInfo(name: "background_normal", type: "StringProperty")))
+        XCTAssertTrue(buttonProps.contains(KivyPropertyInfo(name: "background_color", type: .colorProperty)))
+        XCTAssertTrue(buttonProps.contains(KivyPropertyInfo(name: "background_normal", type: .stringProperty)))
     }
     
     func testHasProperty() {
@@ -78,11 +78,11 @@ final class KivyWidgetRegistryTests: XCTestCase {
     }
     
     func testGetPropertyType() {
-        XCTAssertEqual(KivyWidgetRegistry.getPropertyType("x", on: "Widget"), "NumericProperty")
-        XCTAssertEqual(KivyWidgetRegistry.getPropertyType("text", on: "Label"), "StringProperty")
-        XCTAssertEqual(KivyWidgetRegistry.getPropertyType("bold", on: "Label"), "BooleanProperty")
-        XCTAssertEqual(KivyWidgetRegistry.getPropertyType("background_color", on: "Button"), "ColorProperty")
-        XCTAssertEqual(KivyWidgetRegistry.getPropertyType("orientation", on: "BoxLayout"), "OptionProperty")
+        XCTAssertEqual(KivyWidgetRegistry.getPropertyType("x", on: "Widget"), .numericProperty)
+        XCTAssertEqual(KivyWidgetRegistry.getPropertyType("text", on: "Label"), .stringProperty)
+        XCTAssertEqual(KivyWidgetRegistry.getPropertyType("bold", on: "Label"), .booleanProperty)
+        XCTAssertEqual(KivyWidgetRegistry.getPropertyType("background_color", on: "Button"), .colorProperty)
+        XCTAssertEqual(KivyWidgetRegistry.getPropertyType("orientation", on: "BoxLayout"), .optionProperty)
         
         XCTAssertNil(KivyWidgetRegistry.getPropertyType("nonexistent", on: "Widget"))
     }
@@ -101,12 +101,12 @@ final class KivyWidgetRegistryTests: XCTestCase {
         XCTAssertGreaterThan(boxLayoutProps.count, widgetProps.count)
         
         // Verify BoxLayout has inherited Widget properties
-        XCTAssertTrue(boxLayoutProps.contains(KivyPropertyInfo(name: "x", type: "NumericProperty")))
-        XCTAssertTrue(boxLayoutProps.contains(KivyPropertyInfo(name: "y", type: "NumericProperty")))
+        XCTAssertTrue(boxLayoutProps.contains(KivyPropertyInfo(name: "x", type: .numericProperty)))
+        XCTAssertTrue(boxLayoutProps.contains(KivyPropertyInfo(name: "y", type: .numericProperty)))
         
         // And its own properties
-        XCTAssertTrue(boxLayoutProps.contains(KivyPropertyInfo(name: "orientation", type: "OptionProperty")))
-        XCTAssertTrue(boxLayoutProps.contains(KivyPropertyInfo(name: "spacing", type: "NumericProperty")))
+        XCTAssertTrue(boxLayoutProps.contains(KivyPropertyInfo(name: "orientation", type: .optionProperty)))
+        XCTAssertTrue(boxLayoutProps.contains(KivyPropertyInfo(name: "spacing", type: .numericProperty)))
     }
     
     func testGetAllWidgetNames() {
@@ -130,20 +130,20 @@ final class KivyWidgetRegistryTests: XCTestCase {
     }
     
     func testInheritanceChain() {
-        // Test that Button inherits from ButtonBehavior
+        // Test that Button has no parent (ButtonBehavior is not in the enum)
         let buttonInfo = KivyWidgetRegistry.getWidgetInfo("Button")
-        XCTAssertEqual(buttonInfo?.parentClass, "ButtonBehavior")
+        XCTAssertNil(buttonInfo?.parentClass)
         
         // Test that Label inherits from Widget
         let labelInfo = KivyWidgetRegistry.getWidgetInfo("Label")
-        XCTAssertEqual(labelInfo?.parentClass, "Widget")
+        XCTAssertEqual(labelInfo?.parentClass, .Widget)
         
         // Test that BoxLayout inherits from Layout
         let boxLayoutInfo = KivyWidgetRegistry.getWidgetInfo("BoxLayout")
-        XCTAssertEqual(boxLayoutInfo?.parentClass, "Layout")
+        XCTAssertEqual(boxLayoutInfo?.parentClass, .Layout)
         
         // Test that Layout inherits from Widget
         let layoutInfo = KivyWidgetRegistry.getWidgetInfo("Layout")
-        XCTAssertEqual(layoutInfo?.parentClass, "Widget")
+        XCTAssertEqual(layoutInfo?.parentClass, .Widget)
     }
 }
