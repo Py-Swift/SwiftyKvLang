@@ -1332,35 +1332,37 @@ public struct KvToPyClassGenerator {
         
         // app.method(), self.method(), or root.method()
         if code.contains(".") && code.contains("(") {
-            let parts = code.components(separatedBy: "(")
-            let callPart = parts[0]
-            let dotParts = callPart.components(separatedBy: ".")
-            
-            if dotParts.count == 2 {
-                var obj = dotParts[0]
-                let method = dotParts[1]
+            // Extract method call: "root.save_profile()" -> "root.save_profile" + "()"
+            if let openParenIndex = code.firstIndex(of: "(") {
+                let callPart = String(code[..<openParenIndex])
+                let dotParts = callPart.components(separatedBy: ".")
                 
-                // In Kv language, 'root' refers to the root widget of the current rule
-                // In generated Python code, that's 'self' (the class instance)
-                if obj == "root" {
-                    obj = "self"
-                }
-                
-                return .call(
-                    Call(
-                        fun: .attribute(
-                            Attribute(
-                                value: .name(makeName(obj)),
-                                attr: method,
-                                ctx: .load,
-                                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
-                            )
-                        ),
-                        args: [],
-                        keywords: [],
-                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                if dotParts.count == 2 {
+                    var obj = dotParts[0].trimmingCharacters(in: .whitespaces)
+                    let method = dotParts[1].trimmingCharacters(in: .whitespaces)
+                    
+                    // In Kv language, 'root' refers to the root widget of the current rule
+                    // In generated Python code, that's 'self' (the class instance)
+                    if obj == "root" {
+                        obj = "self"
+                    }
+                    
+                    return .call(
+                        Call(
+                            fun: .attribute(
+                                Attribute(
+                                    value: .name(makeName(obj)),
+                                    attr: method,
+                                    ctx: .load,
+                                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                                )
+                            ),
+                            args: [],
+                            keywords: [],
+                            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                        )
                     )
-                )
+                }
             }
         }
         
