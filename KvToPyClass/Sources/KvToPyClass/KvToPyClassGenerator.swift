@@ -4,6 +4,77 @@ import PySwiftAST
 import PySwiftCodeGen
 import PyFormatters
 
+// MARK: - Property Expression Visitor
+
+/// Visitor to extract watched keys from property value expressions (especially f-strings)
+class PropertyExpressionVisitor: ExpressionVisitor {
+    typealias ExpressionResult = Void
+    
+    var watchedKeys: [[String]] = []
+    
+    func visitAttribute(_ node: Attribute) {
+        // Extract obj.attr patterns like app.title, self.width
+        if case .name(let name) = node.value {
+            watchedKeys.append([name.id, node.attr])
+        }
+        // Recursively visit the value expression
+        visitExpression(node.value)
+    }
+    
+    func visitJoinedStr(_ node: JoinedStr) {
+        // Visit all FormattedValue expressions in the f-string
+        for value in node.values {
+            visitExpression(value)
+        }
+    }
+    
+    func visitFormattedValue(_ node: FormattedValue) {
+        // Visit the expression inside the formatted value
+        visitExpression(node.value)
+    }
+    
+    func visitCall(_ node: Call) {
+        // Handle str(app.prop) patterns
+        if case .name(let funcName) = node.fun, funcName.id == "str" {
+            // Visit arguments to extract watched keys
+            for arg in node.args {
+                visitExpression(arg)
+            }
+        }
+        // Visit the function expression and arguments
+        visitExpression(node.fun)
+        for arg in node.args {
+            visitExpression(arg)
+        }
+    }
+    
+    // MARK: - Required Protocol Methods (no-op implementations)
+    
+    func visitConstant(_ node: Constant) {}
+    func visitList(_ node: List) {}
+    func visitTuple(_ node: Tuple) {}
+    func visitDict(_ node: Dict) {}
+    func visitSet(_ node: Set) {}
+    func visitName(_ node: Name) {}
+    func visitSubscript(_ node: Subscript) {}
+    func visitStarred(_ node: Starred) {}
+    func visitBinOp(_ node: BinOp) {}
+    func visitUnaryOp(_ node: UnaryOp) {}
+    func visitBoolOp(_ node: BoolOp) {}
+    func visitCompare(_ node: Compare) {}
+    func visitLambda(_ node: Lambda) {}
+    func visitListComp(_ node: ListComp) {}
+    func visitSetComp(_ node: SetComp) {}
+    func visitDictComp(_ node: DictComp) {}
+    func visitGeneratorExp(_ node: GeneratorExp) {}
+    func visitIfExp(_ node: IfExp) {}
+    func visitNamedExpr(_ node: NamedExpr) {}
+    func visitYield(_ node: Yield) {}
+    func visitYieldFrom(_ node: YieldFrom) {}
+    func visitAwait(_ node: Await) {}
+    func visitSlice(_ node: Slice) {}
+}
+
 /// Generates Python class code from KV language rules
 ///
 /// Kivy's Builder dynamically applies KV rules to widgets at runtime.
@@ -534,6 +605,34 @@ public struct KvToPyClassGenerator {
         return false
     }
     
+    /// Parse property value as Python expression and extract watched keys using visitor
+    private func parsePropertyExpression(_ property: KvProperty) -> (PySwiftAST.Expression?, [[String]]) {
+        let valueStr = property.value.trimmingCharacters(in: .whitespaces)
+        
+        // Try to parse as Python expression by wrapping it in an assignment
+        do {
+            let code = "_tmp = \(valueStr)"
+            let module = try parsePython(code)
+            
+            // Extract the expression from the assignment
+            if case .module(let statements) = module,
+               let firstStmt = statements.first,
+               case .assign(let assign) = firstStmt {
+                let expr = assign.value
+                
+                // Use visitor to extract watched keys
+                let visitor = PropertyExpressionVisitor()
+                visitor.visitExpression(expr)
+                return (expr, visitor.watchedKeys)
+            }
+        } catch {
+            // If parsing fails, fall back to the pre-computed watchedKeys
+            return (nil, property.watchedKeys ?? [])
+        }
+        
+        return (nil, property.watchedKeys ?? [])
+    }
+    
     private func isEventHandler(_ property: KvProperty) -> Bool {
         // Event handlers in Kivy start with "on_"
         return property.name.hasPrefix("on_")
@@ -542,36 +641,21 @@ public struct KvToPyClassGenerator {
     private func generatePropertyBinding(_ property: KvProperty, targetName: String = "self") throws -> Statement {
         let valueStr = property.value.trimmingCharacters(in: .whitespaces)
         
+        // Parse the expression and extract watched keys using visitor
+        let (parsedExpr, watchedKeys) = parsePropertyExpression(property)
+        
         // For simple property bindings like "app.title" use direct assignment
-        // For complex expressions like f-strings or str() use eval
-        let isSimpleBinding = valueStr.split(separator: ".").count == 2 && 
+        // For complex expressions like f-strings or str() use the parsed expression
+        let isSimpleBinding = watchedKeys.count == 1 && 
+                             watchedKeys[0].count == 2 && 
                              !valueStr.contains("(") && 
                              !valueStr.hasPrefix("f\"") && 
                              !valueStr.hasPrefix("f'")
         
-        if isSimpleBinding {
+        if isSimpleBinding, let firstKey = watchedKeys.first {
             // Simple case: app.some_prop -> self.property = app.some_prop
-            let parts = valueStr.split(separator: ".").map(String.init)
-            guard parts.count >= 2 else {
-                // Fallback to string constant
-                let initialAssign = Assign(
-                    targets: [.attribute(
-                        Attribute(
-                            value: .name(makeName(targetName)),
-                            attr: property.name,
-                            ctx: .store,
-                            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
-                        )
-                    )],
-                    value: .constant(makeConstant(.string(valueStr))),
-                    typeComment: nil,
-                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
-                )
-                return .assign(initialAssign)
-            }
-            
-            let sourceObj = parts[0]
-            let sourceProp = parts[1...].joined(separator: ".")
+            let sourceObj = firstKey[0]
+            let sourceProp = firstKey[1]
             
             let initialAssign = Assign(
                 targets: [.attribute(
@@ -595,12 +679,25 @@ public struct KvToPyClassGenerator {
             )
             
             return .assign(initialAssign)
-        } else {
-            // Complex expression (f-string, str(), etc.): evaluate the full expression
-            // self.property = eval(valueStr) where all names are in scope
-            // We need to ensure app/self/root are available
+        } else if let expr = parsedExpr {
+            // Complex expression (f-string, str(), etc.): use the parsed AST expression
+            let initialAssign = Assign(
+                targets: [.attribute(
+                    Attribute(
+                        value: .name(makeName(targetName)),
+                        attr: property.name,
+                        ctx: .store,
+                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                    )
+                )],
+                value: expr,
+                typeComment: nil,
+                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+            )
             
-            // For now, create a string constant - this will be improved with proper eval
+            return .assign(initialAssign)
+        } else {
+            // Fallback to string constant if parsing failed
             let initialAssign = Assign(
                 targets: [.attribute(
                     Attribute(
@@ -716,6 +813,126 @@ public struct KvToPyClassGenerator {
         }
         
         return nil
+    }
+    
+    /// Generate property binding for child widgets
+    /// Similar to generateBindingCall but for child widget properties
+    /// Returns multiple bind() statements - one for each watched key
+    private func generateChildPropertyBinding(_ property: KvProperty, widgetVarName: String) -> [Statement] {
+        guard let watchedKeys = property.watchedKeys, !watchedKeys.isEmpty else {
+            return []
+        }
+        
+        let valueStr = property.value.trimmingCharacters(in: .whitespaces)
+        
+        // Parse the expression to get the AST
+        let (parsedExpr, _) = parsePropertyExpression(property)
+        
+        // For simple bindings (single watched key, direct property access)
+        if watchedKeys.count == 1, watchedKeys[0].count == 2, let expr = parsedExpr {
+            let sourceObj = watchedKeys[0][0]
+            let sourceProp = watchedKeys[0][1]
+            
+            // Generate: app.bind(prop=widget.setter('property'))
+            let bindCall = PySwiftAST.Expression.call(
+                Call(
+                    fun: .attribute(
+                        Attribute(
+                            value: .name(makeName(sourceObj)),
+                            attr: "bind",
+                            ctx: .load,
+                            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                        )
+                    ),
+                    args: [],
+                    keywords: [Keyword(
+                        arg: sourceProp,
+                        value: .call(
+                            Call(
+                                fun: .attribute(
+                                    Attribute(
+                                        value: .name(makeName(widgetVarName)),
+                                        attr: "setter",
+                                        ctx: .load,
+                                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                                    )
+                                ),
+                                args: [.constant(makeConstant(.string(property.name)))],
+                                keywords: [],
+                                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                            )
+                        )
+                    )],
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                )
+            )
+            
+            return [.expr(Expr(value: bindCall, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil))]
+        }
+        
+        // For complex expressions (f-strings, multiple watched keys)
+        // Generate bind() for each watched key with a lambda that re-evaluates the full expression
+        
+        if let expr = parsedExpr, !watchedKeys.isEmpty {
+            var bindStatements: [Statement] = []
+            
+            // Generate bind() for EACH watched key
+            for watchedKey in watchedKeys {
+                guard watchedKey.count == 2 else { continue }
+                let sourceObj = watchedKey[0]
+                let sourceProp = watchedKey[1]
+                
+                // Create lambda: lambda *args: setattr(widget, 'property', expression)
+                let lambdaBody = PySwiftAST.Expression.call(
+                    Call(
+                        fun: .name(makeName("setattr")),
+                        args: [
+                            .name(makeName(widgetVarName)),
+                            .constant(makeConstant(.string(property.name))),
+                            expr
+                        ],
+                        keywords: [],
+                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                    )
+                )
+                
+                let lambda = Lambda(
+                    args: Arguments(
+                        posonlyArgs: [],
+                        args: [],
+                        vararg: Arg(arg: "args", annotation: nil, typeComment: nil),
+                        kwonlyArgs: [],
+                        kwDefaults: [],
+                        kwarg: nil,
+                        defaults: []
+                    ),
+                    body: lambdaBody,
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                )
+                
+                let bindCall = PySwiftAST.Expression.call(
+                    Call(
+                        fun: .attribute(
+                            Attribute(
+                                value: .name(makeName(sourceObj)),
+                                attr: "bind",
+                                ctx: .load,
+                                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                            )
+                        ),
+                        args: [],
+                        keywords: [Keyword(arg: sourceProp, value: .lambda(lambda))],
+                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                    )
+                )
+                
+                bindStatements.append(.expr(Expr(value: bindCall, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)))
+            }
+            
+            return bindStatements
+        }
+        
+        return []
     }
     
     /// Generate binding for event handlers (on_press, on_release, etc.)
@@ -933,9 +1150,21 @@ public struct KvToPyClassGenerator {
         // Generate a variable name for this widget (use id if available, otherwise generate one)
         let varName = widgetVarName ?? (widgetId ?? "widget_\(UUID().uuidString.prefix(8))")
         
-        // Create widget instance
-        var keywords: [Keyword] = []
+        // Separate properties that need binding from static ones
+        var staticProperties: [KvProperty] = []
+        var bindingProperties: [KvProperty] = []
+        
         for property in widget.properties {
+            if needsBinding(property) {
+                bindingProperties.append(property)
+            } else {
+                staticProperties.append(property)
+            }
+        }
+        
+        // Create widget instance with only static properties
+        var keywords: [Keyword] = []
+        for property in staticProperties {
             let keyword = Keyword(
                 arg: property.name,
                 value: try propertyValueToExpression(property, widgetName: widget.name)
@@ -957,6 +1186,40 @@ public struct KvToPyClassGenerator {
             lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
         )
         statements.append(.assign(widgetCreation))
+        
+        // Set binding properties and create bind() calls
+        for property in bindingProperties {
+            // Parse the expression to get the AST
+            let (parsedExpr, _) = parsePropertyExpression(property)
+            
+            // Use parsed expression if available, otherwise fallback to simple conversion
+            let valueExpr: PySwiftAST.Expression
+            if let expr = parsedExpr {
+                valueExpr = expr
+            } else {
+                valueExpr = try propertyValueToExpression(property, widgetName: widget.name)
+            }
+            
+            // Set initial value: widget.property = expression
+            let setProperty = Assign(
+                targets: [.attribute(
+                    Attribute(
+                        value: .name(makeName(varName)),
+                        attr: property.name,
+                        ctx: .store,
+                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                    )
+                )],
+                value: valueExpr,
+                typeComment: nil,
+                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+            )
+            statements.append(.assign(setProperty))
+            
+            // Create bind() calls for this property (one for each watched key)
+            let bindingStmts = generateChildPropertyBinding(property, widgetVarName: varName)
+            statements.append(contentsOf: bindingStmts)
+        }
         
         // If widget has an id, store it in self.ids
         if let widgetId = widgetId {

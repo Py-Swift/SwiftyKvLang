@@ -56,8 +56,8 @@ public struct KvCompiler {
     /// Translation function _()
     private static let translationPattern = #"_\("#
     
-    /// F-string pattern
-    private static let fstringPattern = #"[fF](?:'''(?:[^\\']|\\.)*?'''|"""(?:[^\\"]|\\.)*?"""|'(?:[^\\'\n]|\\.)*?'|"(?:[^\\"\n]|\\.)*?")"#
+    /// F-string pattern (with optional whitespace due to token reconstruction)
+    private static let fstringPattern = #"[fF]\s*(?:'''(?:[^\\']|\\.)*?'''|"""(?:[^\\"]|\\.)*?"""|'(?:[^\\'\n]|\\.)*?'|"(?:[^\\"\n]|\\.)*?")"#
     
     private static let stringRegex = try! NSRegularExpression(pattern: stringPattern, options: [.dotMatchesLineSeparators])
     private static let keyValueRegex = try! NSRegularExpression(pattern: keyValuePattern, options: [])

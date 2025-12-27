@@ -625,6 +625,9 @@ public final class KvParser {
         // Reconstruct value string from tokens
         let value = reconstructValue(from: valueTokens)
         
+        // Compile the property to extract watched keys
+        let compiled = KvCompiler.compile(propertyName: name, value: value)
+        
         // Parse Python AST for event handlers
         let pythonAST: [Statement]?
         if KvPythonParser.isHandler(name) {
@@ -639,6 +642,7 @@ public final class KvParser {
             name: name,
             value: value,
             compiledValue: .expression(value),
+            watchedKeys: compiled.watchedKeys,
             pythonAST: pythonAST,
             line: startToken.line
         )

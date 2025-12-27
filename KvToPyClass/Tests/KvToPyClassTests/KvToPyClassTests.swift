@@ -157,4 +157,40 @@ final class KvToPyClassTests: XCTestCase {
         print("Generated Python code with root reference:")
         print(pythonCode)
     }
-}
+    
+    func testChildWidgetFStringBinding() throws {
+        let kvSource = """
+        <AppHeader@BoxLayout>:
+            Label:
+                text: f"{app.title} - {app.version}"
+        """
+        
+        let tokenizer = KvTokenizer(source: kvSource)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        // Debug: print property value
+        if let rule = module.rules.first, let child = rule.children.first {
+            if let textProp = child.properties.first(where: { $0.name == "text" }) {
+                print("Property value: '\(textProp.value)'")
+                print("Watched keys: \(textProp.watchedKeys ?? [])")
+            }
+        }
+        
+        let generator = KvToPyClassGenerator(module: module)
+        let pythonCode = try generator.generate()
+        
+        // Verify child widget f-string creates proper binding
+        XCTAssertTrue(pythonCode.contains("class AppHeader"))
+        // Widget should be created without text parameter
+        XCTAssertTrue(pythonCode.contains("Label("))
+        // text should be set after widget creation
+        XCTAssertTrue(pythonCode.contains("widget_") || pythonCode.contains(".text = f"))
+        // Should have bind() call with lambda that re-evaluates expression
+        XCTAssertTrue(pythonCode.contains("app.bind("))
+        XCTAssertTrue(pythonCode.contains("setattr(") || pythonCode.contains("lambda"))
+        
+        print("Generated Python code with child widget f-string binding:")
+        print(pythonCode)
+    }}
