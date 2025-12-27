@@ -132,4 +132,29 @@ final class KvToPyClassTests: XCTestCase {
         print("Generated Python code with property binding:")
         print(pythonCode)
     }
+    
+    func testRootReference() throws {
+        let kvSource = """
+        <ProfileWidget@BoxLayout>:
+            Button:
+                text: 'Save'
+                on_press: root.save_profile()
+        """
+        
+        let tokenizer = KvTokenizer(source: kvSource)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        let generator = KvToPyClassGenerator(module: module)
+        let pythonCode = try generator.generate()
+        
+        // Verify root is converted to self in child widget event handlers
+        XCTAssertTrue(pythonCode.contains("class ProfileWidget"))
+        XCTAssertTrue(pythonCode.contains("lambda instance: self.save_profile"))
+        XCTAssertFalse(pythonCode.contains("root.save_profile"))  // Should not contain root
+        
+        print("Generated Python code with root reference:")
+        print(pythonCode)
+    }
 }

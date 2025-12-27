@@ -759,15 +759,21 @@ public struct KvToPyClassGenerator {
             )
         }
         
-        // app.method() or self.method()
+        // app.method(), self.method(), or root.method()
         if code.contains(".") && code.contains("(") {
             let parts = code.components(separatedBy: "(")
             let callPart = parts[0]
             let dotParts = callPart.components(separatedBy: ".")
             
             if dotParts.count == 2 {
-                let obj = dotParts[0]
+                var obj = dotParts[0]
                 let method = dotParts[1]
+                
+                // In Kv language, 'root' refers to the root widget of the current rule
+                // In generated Python code, that's 'self' (the class instance)
+                if obj == "root" {
+                    obj = "self"
+                }
                 
                 return .call(
                     Call(
