@@ -18,3 +18,5 @@ class AnotherWidget(Label):
         self.text = app.title
         self.font_size = 20.0
         app.bind(title=self.setter("text"))
+        app.bind(title=lambda instance, app_description: widget.text = str(app_description))
+        

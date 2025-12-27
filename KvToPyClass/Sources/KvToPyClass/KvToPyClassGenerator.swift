@@ -120,6 +120,13 @@ public struct KvToPyClassGenerator {
     private let module: KvModule
     private let pythonClasses: [PythonClassInfo]
     
+    /// Track bindings that need to be unbound in __del__
+    private struct BindingInfo {
+        let sourceObj: String      // e.g., "app", "self"
+        let property: String        // e.g., "title", "version"
+        let callbackVar: String     // e.g., "_callback_0"
+    }
+    
     public init(module: KvModule, pythonClasses: [PythonClassInfo] = []) {
         self.module = module
         self.pythonClasses = pythonClasses
@@ -365,11 +372,17 @@ public struct KvToPyClassGenerator {
         }
         
         // Add __init__ method if there are properties or children
+        let hasBindings = hasAppBindingsInChildren(rule.children)
         if !rule.properties.isEmpty || !rule.children.isEmpty {
             body.append(try generateInitMethod(rule, baseClasses: baseClasses, className: className))
         } else if body.isEmpty {
             // Empty class needs pass statement
             body.append(.pass(Pass(lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)))
+        }
+        
+        // Add __del__ method if there are bindings to clean up
+        if hasBindings {
+            body.append(generateDelMethod())
         }
         
         // Add event handler methods
@@ -453,6 +466,8 @@ public struct KvToPyClassGenerator {
     
     private func generateInitMethod(_ rule: KvRule, baseClasses: [String], className: String) throws -> Statement {
         var body: [Statement] = []
+        var bindings: [BindingInfo] = []  // Track bindings for __del__
+        var callbackCounter = 0
         
         // Call super().__init__(**kwargs)
         let superCall = PySwiftAST.Expression.call(
@@ -476,6 +491,22 @@ public struct KvToPyClassGenerator {
             )
         )
         body.append(.expr(Expr(value: superCall, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)))
+        
+        // Initialize bindings list to track for cleanup
+        let initBindings = Assign(
+            targets: [.attribute(
+                Attribute(
+                    value: .name(makeName("self")),
+                    attr: "_bindings",
+                    ctx: .store,
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                )
+            )],
+            value: .list(List(elts: [], ctx: .load, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)),
+            typeComment: nil,
+            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+        )
+        body.append(.assign(initBindings))
         
         // Get app instance if needed for bindings (check both rule properties and child widgets)
         let hasAppBindings = rule.properties.contains { property in
@@ -551,7 +582,49 @@ public struct KvToPyClassGenerator {
         
         // Add children with proper nesting and id handling
         for child in rule.children {
-            body.append(contentsOf: try createAndAddChildWidget(child, parentName: "self"))
+            let (childStmts, childBindings) = try createAndAddChildWidget(child, parentName: "self", callbackCounter: &callbackCounter)
+            body.append(contentsOf: childStmts)
+            bindings.append(contentsOf: childBindings)
+        }
+        
+        // Track all bindings in self._bindings for cleanup in __del__
+        for binding in bindings {
+            // self._bindings.append((obj, 'prop', callback))
+            let tupleExpr = PySwiftAST.Expression.tuple(
+                Tuple(
+                    elts: [
+                        .name(makeName(binding.sourceObj)),
+                        .constant(makeConstant(.string(binding.property))),
+                        .name(makeName(binding.callbackVar))
+                    ],
+                    ctx: .load,
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                )
+            )
+            
+            let appendCall = PySwiftAST.Expression.call(
+                Call(
+                    fun: .attribute(
+                        Attribute(
+                            value: .attribute(
+                                Attribute(
+                                    value: .name(makeName("self")),
+                                    attr: "_bindings",
+                                    ctx: .load,
+                                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                                )
+                            ),
+                            attr: "append",
+                            ctx: .load,
+                            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                        )
+                    ),
+                    args: [tupleExpr],
+                    keywords: [],
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                )
+            )
+            body.append(.expr(Expr(value: appendCall, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)))
         }
         
         let initFunc = FunctionDef(
@@ -574,6 +647,104 @@ public struct KvToPyClassGenerator {
         )
         
         return .functionDef(initFunc)
+    }
+    
+    private func generateDelMethod() -> Statement {
+        // Generate __del__ method to unbind all tracked bindings
+        var body: [Statement] = []
+        
+        // for obj, prop, callback in self._bindings:
+        //     try:
+        //         obj.unbind(**{prop: callback})
+        //     except:
+        //         pass
+        
+        let forLoop = For(
+            target: .tuple(Tuple(
+                elts: [
+                    .name(makeName("obj")),
+                    .name(makeName("prop")),
+                    .name(makeName("callback"))
+                ],
+                ctx: .store,
+                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+            )),
+            iter: .attribute(
+                Attribute(
+                    value: .name(makeName("self")),
+                    attr: "_bindings",
+                    ctx: .load,
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                )
+            ),
+            body: [
+                .tryStmt(Try(
+                    body: [
+                        .expr(Expr(
+                            value: .call(
+                                Call(
+                                    fun: .attribute(
+                                        Attribute(
+                                            value: .name(makeName("obj")),
+                                            attr: "unbind",
+                                            ctx: .load,
+                                            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                                        )
+                                    ),
+                                    args: [],
+                                    keywords: [Keyword(
+                                        arg: nil,
+                                        value: .dict(Dict(
+                                            keys: [.name(makeName("prop"))],
+                                            values: [.name(makeName("callback"))],
+                                            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                                        ))
+                                    )],
+                                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                                )
+                            ),
+                            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                        ))
+                    ],
+                    handlers: [
+                        ExceptHandler(
+                            type: nil,
+                            name: nil,
+                            body: [.pass(Pass(lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil))]
+                        )
+                    ],
+                    orElse: [],
+                    finalBody: [],
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                ))
+            ],
+            orElse: [],
+            typeComment: nil,
+            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+        )
+        
+        body.append(.forStmt(forLoop))
+        
+        let delFunc = FunctionDef(
+            name: "__del__",
+            args: Arguments(
+                posonlyArgs: [],
+                args: [Arg(arg: "self", annotation: nil, typeComment: nil)],
+                vararg: nil,
+                kwonlyArgs: [],
+                kwDefaults: [],
+                kwarg: nil,
+                defaults: []
+            ),
+            body: body,
+            decoratorList: [],
+            returns: nil,
+            typeComment: nil,
+            typeParams: [],
+            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+        )
+        
+        return .functionDef(delFunc)
     }
     
     private func propertyValueToExpression(_ property: KvProperty, widgetName: String = "Widget") throws -> PySwiftAST.Expression {
@@ -877,10 +1048,10 @@ public struct KvToPyClassGenerator {
     
     /// Generate property binding for child widgets
     /// Similar to generateBindingCall but for child widget properties
-    /// Returns multiple bind() statements - one for each watched key
-    private func generateChildPropertyBinding(_ property: KvProperty, widgetVarName: String) -> [Statement] {
+    /// Returns tuple of (statements, bindings) - statements to execute and bindings to track
+    private func generateChildPropertyBinding(_ property: KvProperty, widgetVarName: String, callbackCounter: inout Int) -> ([Statement], [BindingInfo]) {
         guard let watchedKeys = property.watchedKeys, !watchedKeys.isEmpty else {
-            return []
+            return ([], [])
         }
         
         // Parse the expression to get the AST
@@ -940,7 +1111,8 @@ public struct KvToPyClassGenerator {
                 )
             )
             
-            return [.expr(Expr(value: bindCall, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil))]
+            // For setter(), we don't need to track the callback since it's managed by Kivy
+            return ([.expr(Expr(value: bindCall, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil))], [])
         }
         
         // For complex expressions (f-strings, multiple watched keys)
@@ -948,6 +1120,7 @@ public struct KvToPyClassGenerator {
         
         if let expr = parsedExpr, !watchedKeys.isEmpty {
             var bindStatements: [Statement] = []
+            var bindingInfos: [BindingInfo] = []
             
             // Generate bind() for EACH watched key
             for watchedKey in watchedKeys {
@@ -957,6 +1130,10 @@ public struct KvToPyClassGenerator {
                 
                 // Generate parameter name: app.title -> app_title
                 let paramName = "\(sourceObj)_\(sourceProp)"
+                
+                // Generate callback variable name
+                let callbackVar = "_callback_\(callbackCounter)"
+                callbackCounter += 1
                 
                 // Replace the watched attribute (app.title) with the parameter name in the expression
                 let modifiedExpr = replaceAttributeWithName(expr, object: sourceObj, attr: sourceProp, replacement: paramName)
@@ -992,6 +1169,16 @@ public struct KvToPyClassGenerator {
                     lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
                 )
                 
+                // Assign lambda to variable: _callback_0 = lambda ...
+                let callbackAssign = Assign(
+                    targets: [.name(makeName(callbackVar))],
+                    value: .lambda(lambda),
+                    typeComment: nil,
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                )
+                bindStatements.append(.assign(callbackAssign))
+                
+                // Generate bind call: app.bind(prop=_callback_0)
                 let bindCall = PySwiftAST.Expression.call(
                     Call(
                         fun: .attribute(
@@ -1003,18 +1190,21 @@ public struct KvToPyClassGenerator {
                             )
                         ),
                         args: [],
-                        keywords: [Keyword(arg: sourceProp, value: .lambda(lambda))],
+                        keywords: [Keyword(arg: sourceProp, value: .name(makeName(callbackVar)))],
                         lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
                     )
                 )
                 
                 bindStatements.append(.expr(Expr(value: bindCall, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)))
+                
+                // Track binding for cleanup
+                bindingInfos.append(BindingInfo(sourceObj: sourceObj, property: sourceProp, callbackVar: callbackVar))
             }
             
-            return bindStatements
+            return (bindStatements, bindingInfos)
         }
         
-        return []
+        return ([], [])
     }
     
     /// Generate binding for event handlers (on_press, on_release, etc.)
@@ -1222,9 +1412,10 @@ public struct KvToPyClassGenerator {
     }
     
     /// Create and add a child widget with proper handling of nested children and ids
-    /// Returns statements that create the widget, store it if it has an id, add its children, and add it to parent
-    private func createAndAddChildWidget(_ widget: KvWidget, parentName: String, widgetVarName: String? = nil) throws -> [Statement] {
+    /// Returns tuple of (statements, bindings) - statements to execute and bindings to track for cleanup
+    private func createAndAddChildWidget(_ widget: KvWidget, parentName: String, widgetVarName: String? = nil, callbackCounter: inout Int) throws -> ([Statement], [BindingInfo]) {
         var statements: [Statement] = []
+        var bindings: [BindingInfo] = []
         
         // Get the widget id directly from the widget struct (not from properties)
         let widgetId = widget.id
@@ -1299,8 +1490,9 @@ public struct KvToPyClassGenerator {
             statements.append(.assign(setProperty))
             
             // Create bind() calls for this property (one for each watched key)
-            let bindingStmts = generateChildPropertyBinding(property, widgetVarName: varName)
+            let (bindingStmts, bindingInfos) = generateChildPropertyBinding(property, widgetVarName: varName, callbackCounter: &callbackCounter)
             statements.append(contentsOf: bindingStmts)
+            bindings.append(contentsOf: bindingInfos)
         }
         
         // If widget has an id, store it in self.ids
@@ -1330,7 +1522,9 @@ public struct KvToPyClassGenerator {
         
         // Add children to this widget recursively
         for child in widget.children {
-            statements.append(contentsOf: try createAndAddChildWidget(child, parentName: varName))
+            let (childStmts, childBindings) = try createAndAddChildWidget(child, parentName: varName, callbackCounter: &callbackCounter)
+            statements.append(contentsOf: childStmts)
+            bindings.append(contentsOf: childBindings)
         }
         
         // Bind event handlers for this widget
@@ -1359,7 +1553,7 @@ public struct KvToPyClassGenerator {
         )
         statements.append(.expr(Expr(value: addToParent, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)))
         
-        return statements
+        return (statements, bindings)
     }
     
     private func createChildWidget(_ widget: KvWidget) throws -> PySwiftAST.Expression {
