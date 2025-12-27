@@ -193,4 +193,38 @@ final class KvToPyClassTests: XCTestCase {
         
         print("Generated Python code with child widget f-string binding:")
         print(pythonCode)
-    }}
+    }
+    
+    func testChildWidgetStrBinding() throws {
+        let kvSource = """
+        <InfoWidget@BoxLayout>:
+            Label:
+                text: str(app.count)
+            Label:
+                text: str(app.price)
+        """
+        
+        let tokenizer = KvTokenizer(source: kvSource)
+        let tokens = try tokenizer.tokenize()
+        let parser = KvParser(tokens: tokens)
+        let module = try parser.parse()
+        
+        let generator = KvToPyClassGenerator(module: module)
+        let pythonCode = try generator.generate()
+        
+        // Verify str() calls create lambda bindings, not .setter()
+        XCTAssertTrue(pythonCode.contains("class InfoWidget"))
+        XCTAssertTrue(pythonCode.contains("app = App.get_running_app()"))
+        XCTAssertTrue(pythonCode.contains(".text = str(app.count)"))
+        XCTAssertTrue(pythonCode.contains(".text = str(app.price)"))
+        // Should use lambda with parameter, not .setter()
+        XCTAssertTrue(pythonCode.contains("lambda instance, app_count:"))
+        XCTAssertTrue(pythonCode.contains("lambda instance, app_price:"))
+        XCTAssertTrue(pythonCode.contains("str(app_count)"))
+        XCTAssertTrue(pythonCode.contains("str(app_price)"))
+        XCTAssertFalse(pythonCode.contains(".setter(\"text\")"))  // Should NOT use setter for str() calls
+        
+        print("Generated Python code with str() binding:")
+        print(pythonCode)
+    }
+}

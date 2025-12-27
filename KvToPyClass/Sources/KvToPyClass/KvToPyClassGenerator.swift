@@ -886,8 +886,23 @@ public struct KvToPyClassGenerator {
         // Parse the expression to get the AST
         let (parsedExpr, _) = parsePropertyExpression(property)
         
-        // For simple bindings (single watched key, direct property access)
-        if watchedKeys.count == 1, watchedKeys[0].count == 2, parsedExpr != nil {
+        // Check if this is a truly simple binding: single watched key AND direct attribute access (not wrapped in function calls)
+        let isSimpleBinding: Bool
+        if watchedKeys.count == 1, watchedKeys[0].count == 2, let expr = parsedExpr {
+            // Only consider it simple if the parsed expression is a direct Attribute access (app.title)
+            // Not simple if it's wrapped in a Call (str(app.title)), JoinedStr (f-string), etc.
+            switch expr {
+            case .attribute:
+                isSimpleBinding = true
+            default:
+                isSimpleBinding = false
+            }
+        } else {
+            isSimpleBinding = false
+        }
+        
+        // For simple bindings (single watched key, direct property access with no transformations)
+        if isSimpleBinding, let expr = parsedExpr, case .attribute = expr {
             let sourceObj = watchedKeys[0][0]
             let sourceProp = watchedKeys[0][1]
             
