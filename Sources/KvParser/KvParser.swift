@@ -791,8 +791,15 @@ public final class KvParser {
     }
     
     internal func skipNewlines() {
-        while case .newline = peek().type {
-            advance()
+        while true {
+            let tokenType = peek().type
+            if case .newline = tokenType {
+                advance()
+            } else if case .comment(_) = tokenType {
+                advance()
+            } else {
+                break
+            }
         }
     }
     
