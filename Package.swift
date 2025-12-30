@@ -20,6 +20,11 @@ let package = Package(
             name: "benchmark",
             targets: ["Benchmark"]
         ),
+        // Test parser executable
+        .executable(
+            name: "test-parser",
+            targets: ["TestParser"]
+        ),
     ],
     dependencies: [
         // PySwiftAST for parsing Python code in event handlers
@@ -40,6 +45,13 @@ let package = Package(
             name: "Benchmark",
             dependencies: ["KvParser"],
             path: "Sources/Benchmark"
+        ),
+        
+        // Test parser executable
+        .executableTarget(
+            name: "TestParser",
+            dependencies: ["KvParser"],
+            path: "Sources/TestParser"
         ),
         
         // Tests for KV parser
