@@ -52,23 +52,53 @@ class PropertyExpressionVisitor: ExpressionVisitor {
     // MARK: - Required Protocol Methods (no-op implementations)
     
     func visitConstant(_ node: Constant) {}
-    func visitList(_ node: List) {}
-    func visitTuple(_ node: Tuple) {}
+    func visitList(_ node: List) {
+        // Visit all elements in the list
+        for element in node.elts {
+            visitExpression(element)
+        }
+    }
+    func visitTuple(_ node: Tuple) {
+        // Visit all elements in the tuple
+        for element in node.elts {
+            visitExpression(element)
+        }
+    }
     func visitDict(_ node: Dict) {}
     func visitSet(_ node: Set) {}
     func visitName(_ node: Name) {}
     func visitSubscript(_ node: Subscript) {}
     func visitStarred(_ node: Starred) {}
-    func visitBinOp(_ node: BinOp) {}
-    func visitUnaryOp(_ node: UnaryOp) {}
-    func visitBoolOp(_ node: BoolOp) {}
-    func visitCompare(_ node: Compare) {}
+    func visitBinOp(_ node: BinOp) {
+        // Visit both operands to extract watched keys
+        visitExpression(node.left)
+        visitExpression(node.right)
+    }
+    func visitUnaryOp(_ node: UnaryOp) {
+        visitExpression(node.operand)
+    }
+    func visitBoolOp(_ node: BoolOp) {
+        for value in node.values {
+            visitExpression(value)
+        }
+    }
+    func visitCompare(_ node: Compare) {
+        visitExpression(node.left)
+        for comparator in node.comparators {
+            visitExpression(comparator)
+        }
+    }
     func visitLambda(_ node: Lambda) {}
     func visitListComp(_ node: ListComp) {}
     func visitSetComp(_ node: SetComp) {}
     func visitDictComp(_ node: DictComp) {}
     func visitGeneratorExp(_ node: GeneratorExp) {}
-    func visitIfExp(_ node: IfExp) {}
+    func visitIfExp(_ node: IfExp) {
+        // Visit all branches
+        visitExpression(node.test)
+        visitExpression(node.body)
+        visitExpression(node.orElse)
+    }
     func visitNamedExpr(_ node: NamedExpr) {}
     func visitYield(_ node: Yield) {}
     func visitYieldFrom(_ node: YieldFrom) {}
@@ -78,35 +108,146 @@ class PropertyExpressionVisitor: ExpressionVisitor {
 
 // MARK: - Expression Replacement Helper
 
-/// Replace an attribute access (obj.attr) with a name reference in an expression tree
-private func replaceAttributeWithName(_ expr: PySwiftAST.Expression, object: String, attr: String, replacement: String) -> PySwiftAST.Expression {
+/// Replace an attribute access (obj.attr) with another attribute access (replacementObj.attr) in an expression tree
+private func replaceAttributeWithAttribute(_ expr: PySwiftAST.Expression, object: String, attr: String, replacementObj: String) -> PySwiftAST.Expression {
     switch expr {
     case .attribute(let attrNode):
         // Check if this is the attribute we want to replace
         if case .name(let nameNode) = attrNode.value, nameNode.id == object, attrNode.attr == attr {
-            // Replace with name reference
+            // Replace with new attribute reference
+            return .attribute(Attribute(
+                value: .name(Name(id: replacementObj, ctx: .load, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)),
+                attr: attr,
+                ctx: .load,
+                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+            ))
+        }
+        return expr
+        
+    case .joinedStr(let joinedStr):
+        // Recursively process f-string values
+        let newValues = joinedStr.values.map { replaceAttributeWithAttribute($0, object: object, attr: attr, replacementObj: replacementObj) }
+        return .joinedStr(JoinedStr(values: newValues, lineno: joinedStr.lineno, colOffset: joinedStr.colOffset, endLineno: joinedStr.endLineno, endColOffset: joinedStr.endColOffset))
+        
+    case .formattedValue(let formattedValue):
+        // Recursively process the value inside {}
+        let newValue = replaceAttributeWithAttribute(formattedValue.value, object: object, attr: attr, replacementObj: replacementObj)
+        return .formattedValue(FormattedValue(value: newValue, conversion: formattedValue.conversion, formatSpec: formattedValue.formatSpec, lineno: formattedValue.lineno, colOffset: formattedValue.colOffset, endLineno: formattedValue.endLineno, endColOffset: formattedValue.endColOffset))
+        
+    case .call(let call):
+        // Recursively process function and arguments
+        let newFun = replaceAttributeWithAttribute(call.fun, object: object, attr: attr, replacementObj: replacementObj)
+        let newArgs = call.args.map { replaceAttributeWithAttribute($0, object: object, attr: attr, replacementObj: replacementObj) }
+        return .call(Call(fun: newFun, args: newArgs, keywords: call.keywords, lineno: call.lineno, colOffset: call.colOffset, endLineno: call.endLineno, endColOffset: call.endColOffset))
+    
+    case .tuple(let tuple):
+        // Recursively process tuple elements
+        let newElts = tuple.elts.map { replaceAttributeWithAttribute($0, object: object, attr: attr, replacementObj: replacementObj) }
+        return .tuple(Tuple(elts: newElts, ctx: tuple.ctx, lineno: tuple.lineno, colOffset: tuple.colOffset, endLineno: tuple.endLineno, endColOffset: tuple.endColOffset))
+    
+    case .list(let list):
+        // Recursively process list elements
+        let newElts = list.elts.map { replaceAttributeWithAttribute($0, object: object, attr: attr, replacementObj: replacementObj) }
+        return .list(List(elts: newElts, ctx: list.ctx, lineno: list.lineno, colOffset: list.colOffset, endLineno: list.endLineno, endColOffset: list.endColOffset))
+    
+    case .binOp(let binOp):
+        // Recursively process binary operation
+        let newLeft = replaceAttributeWithAttribute(binOp.left, object: object, attr: attr, replacementObj: replacementObj)
+        let newRight = replaceAttributeWithAttribute(binOp.right, object: object, attr: attr, replacementObj: replacementObj)
+        return .binOp(BinOp(left: newLeft, op: binOp.op, right: newRight, lineno: binOp.lineno, colOffset: binOp.colOffset, endLineno: binOp.endLineno, endColOffset: binOp.endColOffset))
+    
+    case .ifExp(let ifExp):
+        // Recursively process conditional expression
+        let newTest = replaceAttributeWithAttribute(ifExp.test, object: object, attr: attr, replacementObj: replacementObj)
+        let newBody = replaceAttributeWithAttribute(ifExp.body, object: object, attr: attr, replacementObj: replacementObj)
+        let newOrElse = replaceAttributeWithAttribute(ifExp.orElse, object: object, attr: attr, replacementObj: replacementObj)
+        return .ifExp(IfExp(test: newTest, body: newBody, orElse: newOrElse, lineno: ifExp.lineno, colOffset: ifExp.colOffset, endLineno: ifExp.endLineno, endColOffset: ifExp.endColOffset))
+        
+    default:
+        // For other expression types, return as-is
+        return expr
+    }
+}
+
+/// Replace an attribute access (obj.attr) with a simple name reference in an expression tree
+/// Used when the callback receives the value as a named parameter
+private func replaceAttributeWithNameRef(_ expr: PySwiftAST.Expression, object: String, attr: String, replacement: String) -> PySwiftAST.Expression {
+    switch expr {
+    case .attribute(let attrNode):
+        // Check if this is the attribute we want to replace
+        if case .name(let nameNode) = attrNode.value, nameNode.id == object, attrNode.attr == attr {
+            // Replace with simple name reference
             return .name(Name(id: replacement, ctx: .load, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil))
         }
         return expr
         
     case .joinedStr(let joinedStr):
         // Recursively process f-string values
-        let newValues = joinedStr.values.map { replaceAttributeWithName($0, object: object, attr: attr, replacement: replacement) }
+        let newValues = joinedStr.values.map { replaceAttributeWithNameRef($0, object: object, attr: attr, replacement: replacement) }
         return .joinedStr(JoinedStr(values: newValues, lineno: joinedStr.lineno, colOffset: joinedStr.colOffset, endLineno: joinedStr.endLineno, endColOffset: joinedStr.endColOffset))
         
     case .formattedValue(let formattedValue):
         // Recursively process the value inside {}
-        let newValue = replaceAttributeWithName(formattedValue.value, object: object, attr: attr, replacement: replacement)
+        let newValue = replaceAttributeWithNameRef(formattedValue.value, object: object, attr: attr, replacement: replacement)
         return .formattedValue(FormattedValue(value: newValue, conversion: formattedValue.conversion, formatSpec: formattedValue.formatSpec, lineno: formattedValue.lineno, colOffset: formattedValue.colOffset, endLineno: formattedValue.endLineno, endColOffset: formattedValue.endColOffset))
         
     case .call(let call):
         // Recursively process function and arguments
-        let newFun = replaceAttributeWithName(call.fun, object: object, attr: attr, replacement: replacement)
-        let newArgs = call.args.map { replaceAttributeWithName($0, object: object, attr: attr, replacement: replacement) }
+        let newFun = replaceAttributeWithNameRef(call.fun, object: object, attr: attr, replacement: replacement)
+        let newArgs = call.args.map { replaceAttributeWithNameRef($0, object: object, attr: attr, replacement: replacement) }
         return .call(Call(fun: newFun, args: newArgs, keywords: call.keywords, lineno: call.lineno, colOffset: call.colOffset, endLineno: call.endLineno, endColOffset: call.endColOffset))
         
     default:
         // For other expression types, return as-is
+        return expr
+    }
+}
+
+/// Replace all self.* attribute accesses with instance.* in an expression tree
+/// Used for canvas bindings where the lambda should use the current instance state
+private func replaceAllSelfWithInstance(_ expr: PySwiftAST.Expression) -> PySwiftAST.Expression {
+    switch expr {
+    case .attribute(let attrNode):
+        // Check if this is a self.* attribute
+        if case .name(let nameNode) = attrNode.value, nameNode.id == "self" {
+            // Replace self with instance
+            return .attribute(Attribute(
+                value: .name(Name(id: "instance", ctx: .load, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)),
+                attr: attrNode.attr,
+                ctx: attrNode.ctx,
+                lineno: attrNode.lineno,
+                colOffset: attrNode.colOffset,
+                endLineno: attrNode.endLineno,
+                endColOffset: attrNode.endColOffset
+            ))
+        }
+        return expr
+        
+    case .tuple(let tuple):
+        let newElts = tuple.elts.map { replaceAllSelfWithInstance($0) }
+        return .tuple(Tuple(elts: newElts, ctx: tuple.ctx, lineno: tuple.lineno, colOffset: tuple.colOffset, endLineno: tuple.endLineno, endColOffset: tuple.endColOffset))
+    
+    case .list(let list):
+        let newElts = list.elts.map { replaceAllSelfWithInstance($0) }
+        return .list(List(elts: newElts, ctx: list.ctx, lineno: list.lineno, colOffset: list.colOffset, endLineno: list.endLineno, endColOffset: list.endColOffset))
+    
+    case .binOp(let binOp):
+        let newLeft = replaceAllSelfWithInstance(binOp.left)
+        let newRight = replaceAllSelfWithInstance(binOp.right)
+        return .binOp(BinOp(left: newLeft, op: binOp.op, right: newRight, lineno: binOp.lineno, colOffset: binOp.colOffset, endLineno: binOp.endLineno, endColOffset: binOp.endColOffset))
+    
+    case .call(let call):
+        let newFun = replaceAllSelfWithInstance(call.fun)
+        let newArgs = call.args.map { replaceAllSelfWithInstance($0) }
+        return .call(Call(fun: newFun, args: newArgs, keywords: call.keywords, lineno: call.lineno, colOffset: call.colOffset, endLineno: call.endLineno, endColOffset: call.endColOffset))
+    
+    case .ifExp(let ifExp):
+        let newTest = replaceAllSelfWithInstance(ifExp.test)
+        let newBody = replaceAllSelfWithInstance(ifExp.body)
+        let newOrElse = replaceAllSelfWithInstance(ifExp.orElse)
+        return .ifExp(IfExp(test: newTest, body: newBody, orElse: newOrElse, lineno: ifExp.lineno, colOffset: ifExp.colOffset, endLineno: ifExp.endLineno, endColOffset: ifExp.endColOffset))
+    
+    default:
         return expr
     }
 }
@@ -257,7 +398,7 @@ public struct KvToPyClassGenerator {
                 property.value.contains("app.")
             } || rule.handlers.contains { handler in
                 handler.value.contains("app.")
-            } || hasAppBindingsInChildren(rule.children)
+            } || hasAppBindingsInChildren(rule.children) || hasAppBindingsInCanvas(rule)
         }
         
         if needsApp {
@@ -289,6 +430,24 @@ public struct KvToPyClassGenerator {
                 endColOffset: nil
             )
             imports.append(.importFrom(propsImport))
+            lineNum += 1
+        }
+        
+        // Collect graphics instruction types from canvas
+        let graphicsTypes = collectGraphicsTypes()
+        
+        if !graphicsTypes.isEmpty {
+            // Import graphics instructions from kivy.graphics
+            let graphicsImport = ImportFrom(
+                module: "kivy.graphics",
+                names: graphicsTypes.sorted().map { Alias(name: $0, asName: nil) },
+                level: 0,
+                lineno: lineNum,
+                colOffset: 0,
+                endLineno: nil,
+                endColOffset: nil
+            )
+            imports.append(.importFrom(graphicsImport))
         }
         
         return imports
@@ -314,6 +473,53 @@ public struct KvToPyClassGenerator {
         }
         
         return types
+    }
+    
+    /// Collect all graphics instruction types used in canvas layers
+    private func collectGraphicsTypes() -> Swift.Set<String> {
+        var types = Swift.Set<String>()
+        
+        for rule in module.rules {
+            // Check canvas.before
+            if let canvasBefore = rule.canvasBefore {
+                for instruction in canvasBefore.instructions {
+                    types.insert(instruction.instructionType)
+                }
+            }
+            
+            // Check canvas
+            if let canvas = rule.canvas {
+                for instruction in canvas.instructions {
+                    types.insert(instruction.instructionType)
+                }
+            }
+            
+            // Check canvas.after
+            if let canvasAfter = rule.canvasAfter {
+                for instruction in canvasAfter.instructions {
+                    types.insert(instruction.instructionType)
+                }
+            }
+        }
+        
+        return types
+    }
+    
+    /// Check if canvas instructions contain app bindings
+    private func hasAppBindingsInCanvas(_ rule: KvRule) -> Bool {
+        let canvasLayers = [rule.canvasBefore, rule.canvas, rule.canvasAfter].compactMap { $0 }
+        
+        for layer in canvasLayers {
+            for instruction in layer.instructions {
+                for property in instruction.properties {
+                    if property.value.contains("app.") {
+                        return true
+                    }
+                }
+            }
+        }
+        
+        return false
     }
     
     // MARK: - Class Generation
@@ -372,8 +578,9 @@ public struct KvToPyClassGenerator {
             body.append(.assign(propDecl))
         }
         
-        // Add __init__ method if there are properties or children
-        let hasInit = !rule.properties.isEmpty || !rule.children.isEmpty
+        // Add __init__ method if there are properties, children, or canvas
+        let hasCanvas = rule.canvasBefore != nil || rule.canvas != nil || rule.canvasAfter != nil
+        let hasInit = !rule.properties.isEmpty || !rule.children.isEmpty || hasCanvas
         if hasInit {
             body.append(try generateInitMethod(rule, baseClasses: baseClasses, className: className))
         } else if body.isEmpty {
@@ -509,12 +716,12 @@ public struct KvToPyClassGenerator {
         )
         body.append(.assign(initBindings))
         
-        // Get app instance if needed for bindings (check both rule properties and child widgets)
+        // Get app instance if needed for bindings (check properties, handlers, children, and canvas)
         let hasAppBindings = rule.properties.contains { property in
             property.value.contains("app.")
         } || rule.handlers.contains { handler in
             handler.value.contains("app.")
-        } || hasAppBindingsInChildren(rule.children)
+        } || hasAppBindingsInChildren(rule.children) || hasAppBindingsInCanvas(rule)
         
         if hasAppBindings {
             // app = App.get_running_app()
@@ -586,6 +793,25 @@ public struct KvToPyClassGenerator {
             let (childStmts, childBindings) = try createAndAddChildWidget(child, parentName: "self", callbackCounter: &callbackCounter)
             body.append(contentsOf: childStmts)
             bindings.append(contentsOf: childBindings)
+        }
+        
+        // Add canvas instructions if present
+        if let canvasBefore = rule.canvasBefore, !canvasBefore.instructions.isEmpty {
+            let (canvasStmts, canvasBindings) = try generateCanvasInstructions(canvasBefore.instructions, layer: "before", callbackCounter: &callbackCounter)
+            body.append(contentsOf: canvasStmts)
+            bindings.append(contentsOf: canvasBindings)
+        }
+        
+        if let canvas = rule.canvas, !canvas.instructions.isEmpty {
+            let (canvasStmts, canvasBindings) = try generateCanvasInstructions(canvas.instructions, layer: nil, callbackCounter: &callbackCounter)
+            body.append(contentsOf: canvasStmts)
+            bindings.append(contentsOf: canvasBindings)
+        }
+        
+        if let canvasAfter = rule.canvasAfter, !canvasAfter.instructions.isEmpty {
+            let (canvasStmts, canvasBindings) = try generateCanvasInstructions(canvasAfter.instructions, layer: "after", callbackCounter: &callbackCounter)
+            body.append(contentsOf: canvasStmts)
+            bindings.append(contentsOf: canvasBindings)
         }
         
         // Track all bindings in self._bindings for cleanup in __del__
@@ -1137,7 +1363,7 @@ public struct KvToPyClassGenerator {
                 callbackCounter += 1
                 
                 // Replace the watched attribute (app.title) with the parameter name in the expression
-                let modifiedExpr = replaceAttributeWithName(expr, object: sourceObj, attr: sourceProp, replacement: paramName)
+                let modifiedExpr = replaceAttributeWithNameRef(expr, object: sourceObj, attr: sourceProp, replacement: paramName)
                 
                 // Create lambda: lambda instance, param_name: setattr(widget, 'property', expression)
                 let lambdaBody = PySwiftAST.Expression.call(
@@ -1371,8 +1597,8 @@ public struct KvToPyClassGenerator {
     }
     
     /// Generate binding for event handlers on child widgets
-    /// Returns: widget.bind(on_press=lambda instance: handler_code)
-    private func generateChildWidgetEventBinding(_ handler: KvProperty, widgetVarName: String) throws -> Statement? {
+    /// Returns: ([statements], [bindings]) - statements to execute and bindings to track for cleanup
+    private func generateChildWidgetEventBinding(_ handler: KvProperty, widgetVarName: String, callbackCounter: inout Int) throws -> ([Statement], [BindingInfo]) {
         let handlerCode = handler.value.trimmingCharacters(in: .whitespaces)
         
         // Parse the handler expression
@@ -1393,7 +1619,22 @@ public struct KvToPyClassGenerator {
             lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
         )
         
-        // widget.bind(on_event=lambda_func)
+        // Generate callback variable name
+        let callbackVar = "_callback_\(callbackCounter)"
+        callbackCounter += 1
+        
+        var statements: [Statement] = []
+        
+        // Step 1: Assign lambda to callback variable: _callback_N = lambda instance: ...
+        let assignCallback = Assign(
+            targets: [.name(Name(id: callbackVar, ctx: .store, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil))],
+            value: .lambda(lambdaFunc),
+            typeComment: nil,
+            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+        )
+        statements.append(.assign(assignCallback))
+        
+        // Step 2: Call widget.bind(on_event=_callback_N)
         let bindCall = Call(
             fun: .attribute(
                 Attribute(
@@ -1406,12 +1647,20 @@ public struct KvToPyClassGenerator {
             args: [],
             keywords: [Keyword(
                 arg: handler.name,
-                value: .lambda(lambdaFunc)
+                value: .name(makeName(callbackVar))
             )],
             lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
         )
+        statements.append(.expr(Expr(value: .call(bindCall), lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)))
         
-        return .expr(Expr(value: .call(bindCall), lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil))
+        // Create binding info for cleanup
+        let bindingInfo = BindingInfo(
+            sourceObj: widgetVarName,
+            property: handler.name,
+            callbackVar: callbackVar
+        )
+        
+        return (statements, [bindingInfo])
     }
     
     /// Create and add a child widget with proper handling of nested children and ids
@@ -1541,10 +1790,10 @@ public struct KvToPyClassGenerator {
         
         // Bind event handlers for this widget
         for handler in widget.handlers {
-            // Generate inline handler binding: widget.bind(on_press=lambda instance: print("hello"))
-            if let bindStmt = try generateChildWidgetEventBinding(handler, widgetVarName: varName) {
-                statements.append(bindStmt)
-            }
+            // Generate inline handler binding and track it for cleanup
+            let (bindStmts, bindInfos) = try generateChildWidgetEventBinding(handler, widgetVarName: varName, callbackCounter: &callbackCounter)
+            statements.append(contentsOf: bindStmts)
+            bindings.append(contentsOf: bindInfos)
         }
         
         // Add this widget to parent
@@ -1588,5 +1837,373 @@ public struct KvToPyClassGenerator {
                 lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
             )
         )
+    }
+    
+    // MARK: - Canvas Generation
+    
+    /// Generate canvas instructions for a given layer
+    /// Returns tuple of (statements, bindings)
+    private func generateCanvasInstructions(_ instructions: [KvCanvasInstruction], layer: String?, callbackCounter: inout Int) throws -> ([Statement], [BindingInfo]) {
+        var statements: [Statement] = []
+        var bindings: [BindingInfo] = []
+        
+        // Determine canvas attribute (self.canvas, self.canvas.before, or self.canvas.after)
+        let canvasAttr: PySwiftAST.Expression
+        if let layer = layer {
+            canvasAttr = .attribute(
+                Attribute(
+                    value: .attribute(
+                        Attribute(
+                            value: .name(makeName("self")),
+                            attr: "canvas",
+                            ctx: .load,
+                            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                        )
+                    ),
+                    attr: layer,
+                    ctx: .load,
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                )
+            )
+        } else {
+            canvasAttr = .attribute(
+                Attribute(
+                    value: .name(makeName("self")),
+                    attr: "canvas",
+                    ctx: .load,
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                )
+            )
+        }
+        
+        // Process each canvas instruction
+        for instruction in instructions {
+            let (instrStmts, instrBindings) = try generateSingleCanvasInstruction(instruction, canvasAttr: canvasAttr, callbackCounter: &callbackCounter)
+            statements.append(contentsOf: instrStmts)
+            bindings.append(contentsOf: instrBindings)
+        }
+        
+        return (statements, bindings)
+    }
+    
+    /// Generate a single canvas instruction
+    private func generateSingleCanvasInstruction(_ instruction: KvCanvasInstruction, canvasAttr: PySwiftAST.Expression, callbackCounter: inout Int) throws -> ([Statement], [BindingInfo]) {
+        var statements: [Statement] = []
+        var bindings: [BindingInfo] = []
+        
+        // Check if instruction is context-only (no properties, like PushMatrix, PopMatrix)
+        let isContextOnly = instruction.properties.isEmpty
+        
+        if isContextOnly {
+            // Context instructions like PushMatrix, PopMatrix - just add them to canvas
+            // with self.canvas:
+            //     PushMatrix()
+            let instrCall = PySwiftAST.Expression.call(
+                Call(
+                    fun: .name(makeName(instruction.instructionType)),
+                    args: [],
+                    keywords: [],
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                )
+            )
+            
+            let addToCanvas = PySwiftAST.Expression.call(
+                Call(
+                    fun: .attribute(
+                        Attribute(
+                            value: canvasAttr,
+                            attr: "add",
+                            ctx: .load,
+                            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                        )
+                    ),
+                    args: [instrCall],
+                    keywords: [],
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                )
+            )
+            statements.append(.expr(Expr(value: addToCanvas, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)))
+        } else {
+            // Instructions with properties - check if any need binding
+            let staticProps = instruction.properties.filter { !needsBinding($0) }
+            let bindingProps = instruction.properties.filter { needsBinding($0) }
+            
+            if bindingProps.isEmpty {
+                // All properties are static - create instruction directly
+                var keywords: [Keyword] = []
+                for property in staticProps {
+                    let keyword = Keyword(
+                        arg: property.name,
+                        value: try canvasPropertyValueToExpression(property)
+                    )
+                    keywords.append(keyword)
+                }
+                
+                let instrCall = PySwiftAST.Expression.call(
+                    Call(
+                        fun: .name(makeName(instruction.instructionType)),
+                        args: [],
+                        keywords: keywords,
+                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                    )
+                )
+                
+                let addToCanvas = PySwiftAST.Expression.call(
+                    Call(
+                        fun: .attribute(
+                            Attribute(
+                                value: canvasAttr,
+                                attr: "add",
+                                ctx: .load,
+                                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                            )
+                        ),
+                        args: [instrCall],
+                        keywords: [],
+                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                    )
+                )
+                statements.append(.expr(Expr(value: addToCanvas, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)))
+            } else {
+                // Some properties need binding - store instruction reference and create update method
+                let uuid = UUID().uuidString.prefix(8)
+                let instrAttrName = "_canvas_\(instruction.instructionType.lowercased())_\(uuid)"
+                
+                // Create instruction with static properties only
+                var keywords: [Keyword] = []
+                for property in staticProps {
+                    let keyword = Keyword(
+                        arg: property.name,
+                        value: try canvasPropertyValueToExpression(property)
+                    )
+                    keywords.append(keyword)
+                }
+                
+                // Assign to variable: self._canvas_rect_ABC123 = Rectangle(...)
+                let instrCreation = Assign(
+                    targets: [.attribute(
+                        Attribute(
+                            value: .name(makeName("self")),
+                            attr: instrAttrName,
+                            ctx: .store,
+                            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                        )
+                    )],
+                    value: .call(
+                        Call(
+                            fun: .name(makeName(instruction.instructionType)),
+                            args: [],
+                            keywords: keywords,
+                            lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                        )
+                    ),
+                    typeComment: nil,
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                )
+                statements.append(.assign(instrCreation))
+                
+                // Add to canvas
+                let addToCanvas = PySwiftAST.Expression.call(
+                    Call(
+                        fun: .attribute(
+                            Attribute(
+                                value: canvasAttr,
+                                attr: "add",
+                                ctx: .load,
+                                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                            )
+                        ),
+                        args: [.attribute(
+                            Attribute(
+                                value: .name(makeName("self")),
+                                attr: instrAttrName,
+                                ctx: .load,
+                                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                            )
+                        )],
+                        keywords: [],
+                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                    )
+                )
+                statements.append(.expr(Expr(value: addToCanvas, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)))
+                
+                // Set binding properties and create bind() calls
+                for property in bindingProps {
+                    // Parse the expression to get the AST
+                    let (parsedExpr, _) = parsePropertyExpression(property)
+                    
+                    let valueExpr: PySwiftAST.Expression
+                    if let expr = parsedExpr {
+                        valueExpr = expr
+                    } else {
+                        valueExpr = try canvasPropertyValueToExpression(property)
+                    }
+                    
+                    // Set initial value: self._canvas_rect.pos = self.pos
+                    let setProperty = Assign(
+                        targets: [.attribute(
+                            Attribute(
+                                value: .attribute(
+                                    Attribute(
+                                        value: .name(makeName("self")),
+                                        attr: instrAttrName,
+                                        ctx: .load,
+                                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                                    )
+                                ),
+                                attr: property.name,
+                                ctx: .store,
+                                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                            )
+                        )],
+                        value: valueExpr,
+                        typeComment: nil,
+                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                    )
+                    statements.append(.assign(setProperty))
+                    
+                    // Create bind() calls for this property (one for each watched key)
+                    let (bindingStmts, bindingInfos) = generateCanvasPropertyBinding(property, instrVarName: "self.\(instrAttrName)", callbackCounter: &callbackCounter)
+                    statements.append(contentsOf: bindingStmts)
+                    bindings.append(contentsOf: bindingInfos)
+                }
+            }
+        }
+        
+        return (statements, bindings)
+    }
+    
+    /// Generate binding for a canvas instruction property (e.g., pos: self.pos)
+    private func generateCanvasPropertyBinding(_ property: KvProperty, instrVarName: String, callbackCounter: inout Int) -> ([Statement], [BindingInfo]) {
+        var statements: [Statement] = []
+        var bindings: [BindingInfo] = []
+        
+        // Extract watched keys from the expression
+        let visitor = PropertyExpressionVisitor()
+        let (expr, _) = parsePropertyExpression(property)
+        if let parsedExpr = expr {
+            visitor.visitExpression(parsedExpr)
+        }
+        
+        // Generate a bind() call for each watched key
+        for watchedKey in visitor.watchedKeys {
+            callbackCounter += 1
+            let callbackVar = "_callback_\(callbackCounter)"
+            
+            // Determine source object (self or app)
+            let sourceObj = watchedKey[0]  // e.g., "self" or "app"
+            let watchedProp = watchedKey[1]   // e.g., "pos" or "title"
+            
+            // Parse the full property expression
+            let (parsedExpr, _) = parsePropertyExpression(property)
+            let valueExpr: PySwiftAST.Expression
+            if let expr = parsedExpr {
+                // Check if the expression is simply the watched attribute (e.g., self.pos)
+                // In that case, we can just use 'value' directly for efficiency
+                let isSimpleAttribute: Bool
+                if case .attribute(let attr) = expr,
+                   case .name(let nameNode) = attr.value,
+                   nameNode.id == sourceObj && attr.attr == watchedProp {
+                    isSimpleAttribute = true
+                } else {
+                    isSimpleAttribute = false
+                }
+                
+                if isSimpleAttribute {
+                    // For simple attribute access, use the new value directly
+                    valueExpr = .name(makeName("value"))
+                } else {
+                    // For complex expressions, replace ALL self.* references with instance.*
+                    valueExpr = replaceAllSelfWithInstance(expr)
+                }
+            } else {
+                // Fallback - shouldn't happen if parsing worked
+                valueExpr = .name(makeName("value"))
+            }
+            
+            // Create lambda: lambda instance, value: setattr(instr, 'prop', expression)
+            let lambdaBody: PySwiftAST.Expression = .call(
+                Call(
+                    fun: .name(makeName("setattr")),
+                    args: [
+                        // Parse the instruction variable name (e.g., "self._canvas_rect")
+                        instrVarName.contains(".") ?
+                            .attribute(
+                                Attribute(
+                                    value: .name(makeName(String(instrVarName.split(separator: ".")[0]))),
+                                    attr: String(instrVarName.split(separator: ".")[1]),
+                                    ctx: .load,
+                                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                                )
+                            ) : .name(makeName(instrVarName)),
+                        .constant(makeConstant(.string(property.name))),
+                        valueExpr
+                    ],
+                    keywords: [],
+                    lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                )
+            )
+            
+            let lambdaFunc = Lambda(
+                args: Arguments(
+                    posonlyArgs: [],
+                    args: [
+                        Arg(arg: "instance", annotation: nil, typeComment: nil),
+                        Arg(arg: "value", annotation: nil, typeComment: nil)
+                    ],
+                    vararg: nil,
+                    kwonlyArgs: [],
+                    kwDefaults: [],
+                    kwarg: nil,
+                    defaults: []
+                ),
+                body: lambdaBody,
+                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+            )
+            
+            // Step 1: Assign lambda to callback variable
+            let assignCallback = Assign(
+                targets: [.name(Name(id: callbackVar, ctx: .store, lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil))],
+                value: .lambda(lambdaFunc),
+                typeComment: nil,
+                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+            )
+            statements.append(.assign(assignCallback))
+            
+            // Step 2: Call source.bind(property=_callback_N)
+            let bindCall = Call(
+                fun: .attribute(
+                    Attribute(
+                        value: .name(makeName(sourceObj)),
+                        attr: "bind",
+                        ctx: .load,
+                        lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+                    )
+                ),
+                args: [],
+                keywords: [Keyword(
+                    arg: watchedProp,
+                    value: .name(makeName(callbackVar))
+                )],
+                lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil
+            )
+            statements.append(.expr(Expr(value: .call(bindCall), lineno: 1, colOffset: 0, endLineno: nil, endColOffset: nil)))
+            
+            // Create binding info for cleanup
+            let bindingInfo = BindingInfo(
+                sourceObj: sourceObj,
+                property: watchedProp,
+                callbackVar: callbackVar
+            )
+            bindings.append(bindingInfo)
+        }
+        
+        return (statements, bindings)
+    }
+    
+    /// Convert canvas property value to Python expression
+    private func canvasPropertyValueToExpression(_ property: KvProperty) throws -> PySwiftAST.Expression {
+        // Canvas properties are similar to widget properties
+        return try propertyValueToExpression(property, widgetName: "Canvas")
     }
 }

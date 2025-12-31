@@ -1,0 +1,92 @@
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.color import Color
+from kivy.uix.ellipse import Ellipse
+from kivy.uix.rectangle import Rectangle
+from kivy.uix.widget import Widget
+from kivy.app import App
+from kivy.graphics import Color, Ellipse, Line, PopMatrix, PushMatrix, Rectangle, Rotate
+
+
+class MyCanvasWidget(BoxLayout):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._bindings = []
+        self.canvas.before.add(Color(rgba=(0.2, 0.2, 0.2, 1.0)))
+        self._canvas_rectangle_D7E7156E = Rectangle()
+        self.canvas.before.add(self._canvas_rectangle_D7E7156E)
+        self._canvas_rectangle_D7E7156E.pos = self.pos
+        _callback_1 = lambda instance, value: setattr(self._canvas_rectangle_D7E7156E, "pos", instance)
+        self.bind(pos=_callback_1)
+        self._canvas_rectangle_D7E7156E.size = self.size
+        _callback_2 = lambda instance, value: setattr(self._canvas_rectangle_D7E7156E, "size", instance)
+        self.bind(size=_callback_2)
+        self.canvas.add(Color(rgb=(1.0, 0.0, 0.0)))
+        self._canvas_ellipse_4D9F34EE = Ellipse(size=(100.0, 100.0))
+        self.canvas.add(self._canvas_ellipse_4D9F34EE)
+        self._canvas_ellipse_4D9F34EE.pos = ((self.x + 50), (self.y + 50))
+        self.canvas.add(Color(rgba=(0.0, 1.0, 0.0, 0.5)))
+        self._canvas_line_AA69F56F = Line(width=2.0)
+        self.canvas.add(self._canvas_line_AA69F56F)
+        self._canvas_line_AA69F56F.points = [self.x, self.y, self.right, self.top]
+        self.canvas.after.add(PushMatrix())
+        self._canvas_rotate_BC2EC530 = Rotate(angle=45.0)
+        self.canvas.after.add(self._canvas_rotate_BC2EC530)
+        self._canvas_rotate_BC2EC530.origin = self.center
+        _callback_3 = lambda instance, value: setattr(self._canvas_rotate_BC2EC530, "origin", instance)
+        self.bind(center=_callback_3)
+        self.canvas.after.add(Color(rgb=(0.0, 0.0, 1.0)))
+        self._canvas_rectangle_87A88294 = Rectangle(size=(50.0, 50.0))
+        self.canvas.after.add(self._canvas_rectangle_87A88294)
+        self._canvas_rectangle_87A88294.pos = ((self.center_x - 25), (self.center_y - 25))
+        self.canvas.after.add(PopMatrix())
+        self._bindings.append((self, "pos", _callback_1))
+        self._bindings.append((self, "size", _callback_2))
+        self._bindings.append((self, "center", _callback_3))
+
+    def __del__(self):
+        for (obj, prop, callback) in self._bindings:
+            try:
+                obj.unbind(**{prop: callback})
+            except:
+                pass
+
+
+
+
+class MyDrawingWidget(Widget):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._bindings = []
+        app = App.get_running_app()
+        color_6401B1D6 = Color()
+        color_6401B1D6.rgba = app.bg_color if hasattr(app, "bg_color") else (1, 1, 1, 1)
+        _callback_0 = lambda instance, app_bg_color: setattr(color_6401B1D6, "rgba", app.bg_color if hasattr(app, "bg_color") else (1, 1, 1, 1))
+        app.bind(bg_color=_callback_0)
+        self.add_widget(color_6401B1D6)
+        rectangle_B5CD0AE7 = Rectangle()
+        rectangle_B5CD0AE7.pos = self.pos
+        self.bind(pos=rectangle_B5CD0AE7.setter("pos"))
+        rectangle_B5CD0AE7.size = self.size
+        self.bind(size=rectangle_B5CD0AE7.setter("size"))
+        self.add_widget(rectangle_B5CD0AE7)
+        color_2EA2641E = Color(rgb=(1.0, 1.0, 0.0))
+        self.add_widget(color_2EA2641E)
+        ellipse_4418C61D = Ellipse(size=(40.0, 40.0))
+        ellipse_4418C61D.pos = ((self.center_x - 20), (self.center_y - 20))
+        _callback_1 = lambda instance, self_center_x: setattr(ellipse_4418C61D, "pos", ((self.center_x - 20), (self.center_y - 20)))
+        self.bind(center_x=_callback_1)
+        _callback_2 = lambda instance, self_center_y: setattr(ellipse_4418C61D, "pos", ((self.center_x - 20), (self.center_y - 20)))
+        self.bind(center_y=_callback_2)
+        self.add_widget(ellipse_4418C61D)
+        self._bindings.append((app, "bg_color", _callback_0))
+        self._bindings.append((self, "center_x", _callback_1))
+        self._bindings.append((self, "center_y", _callback_2))
+
+    def __del__(self):
+        for (obj, prop, callback) in self._bindings:
+            try:
+                obj.unbind(**{prop: callback})
+            except:
+                pass

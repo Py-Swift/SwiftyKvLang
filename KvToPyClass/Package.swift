@@ -11,14 +11,18 @@ let package = Package(
             name: "KvToPyClass",
             targets: ["KvToPyClass"]
         ),
+        .library(
+            name: "KivyWidgetRegistry",
+            targets: ["KivyWidgetRegistry"]
+        ),
         .executable(
-            name: "kvtoclass",
+            name: "KvToPyClassCLI",
             targets: ["KvToPyClassCLI"]
         )
     ],
     dependencies: [
         // Local dependency on SwiftyKvLang parser
-        .package(path: ".."),
+        .package(url: "https://github.com/Py-Swift/SwiftyKvLang.git", branch: "master"),
         // PySwiftAST for generating Python code
         .package(url: "https://github.com/Py-Swift/PySwiftAST.git", branch: "master")
     ],
