@@ -15,6 +15,11 @@ let package = Package(
             name: "KvParser",
             targets: ["KvParser"]
         ),
+        // Kivy widget registry library
+        .library(
+            name: "KivyWidgetRegistry",
+            targets: ["KivyWidgetRegistry"]
+        ),
         // Performance benchmark executable
         .executable(
             name: "benchmark",
@@ -31,6 +36,13 @@ let package = Package(
         .package(url: "https://github.com/Py-Swift/PySwiftAST.git", branch: "master")
     ],
     targets: [
+        // Kivy widget registry target
+        .target(
+            name: "KivyWidgetRegistry",
+            dependencies: [],
+            path: "Sources/KivyWidgetRegistry"
+        ),
+        
         // KV language parser target
         .target(
             name: "KvParser",
